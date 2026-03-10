@@ -8,10 +8,10 @@
 
   <Id>f8c6f238-2f66-40ae-a3be-09fb63965a95</Id>
   <Version>1.0.0.0</Version>
-  <ProviderName>PowerPoint Toolbox</ProviderName>
+  <ProviderName>Slide Toolbox</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="PowerPoint Toolbox" />
-  <Description DefaultValue="A collection of tools for enhancing your PowerPoint presentations." />
+  <DisplayName DefaultValue="Slide Toolbox" />
+  <Description DefaultValue="Consulting-grade slide tools: align, distribute, symbols, footnotes, status labels." />
 
   <IconUrl DefaultValue="https://localhost:3000/assets/icon-32.png" />
   <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-64.png" />
@@ -42,18 +42,18 @@
           <FunctionFile resid="Commands.Url" />
           <ExtensionPoint xsi:type="PrimaryCommandSurface">
             <OfficeTab id="TabHome">
-              <Group id="CommandsGroup">
-                <Label resid="CommandsGroup.Label" />
+              <Group id="ToolboxGroup">
+                <Label resid="ToolboxGroup.Label" />
                 <Icon>
                   <bt:Image size="16" resid="Icon.16x16" />
                   <bt:Image size="32" resid="Icon.32x32" />
                   <bt:Image size="80" resid="Icon.80x80" />
                 </Icon>
-                <Control xsi:type="Button" id="TaskpaneButton">
-                  <Label resid="TaskpaneButton.Label" />
+                <Control xsi:type="Button" id="OpenToolboxButton">
+                  <Label resid="OpenToolbox.Label" />
                   <Supertip>
-                    <Title resid="TaskpaneButton.Label" />
-                    <Description resid="TaskpaneButton.Tooltip" />
+                    <Title resid="OpenToolbox.Label" />
+                    <Description resid="OpenToolbox.Tooltip" />
                   </Supertip>
                   <Icon>
                     <bt:Image size="16" resid="Icon.16x16" />
@@ -61,7 +61,7 @@
                     <bt:Image size="80" resid="Icon.80x80" />
                   </Icon>
                   <Action xsi:type="ShowTaskpane">
-                    <TaskpaneId>ButtonId1</TaskpaneId>
+                    <TaskpaneId>SlideToolbox</TaskpaneId>
                     <SourceLocation resid="Taskpane.Url" />
                   </Action>
                 </Control>
@@ -78,18 +78,18 @@
         <bt:Image id="Icon.80x80" DefaultValue="https://localhost:3000/assets/icon-80.png" />
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://go.microsoft.com/fwlink/?LinkId=276812" />
+        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://learn.microsoft.com/office/dev/add-ins/overview/office-add-ins" />
         <bt:Url id="Commands.Url" DefaultValue="https://localhost:3000/commands.html" />
         <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane.html" />
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="GetStarted.Title" DefaultValue="Get started with PowerPoint Toolbox!" />
-        <bt:String id="CommandsGroup.Label" DefaultValue="PowerPoint Toolbox" />
-        <bt:String id="TaskpaneButton.Label" DefaultValue="Show Toolbox" />
+        <bt:String id="GetStarted.Title" DefaultValue="Slide Toolbox is ready!" />
+        <bt:String id="ToolboxGroup.Label" DefaultValue="Slide Toolbox" />
+        <bt:String id="OpenToolbox.Label" DefaultValue="Open Toolbox" />
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="GetStarted.Description" DefaultValue="Your add-in loaded successfully. Go to the HOME tab and click the 'Show Toolbox' button to get started." />
-        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Click to show the PowerPoint Toolbox task pane." />
+        <bt:String id="GetStarted.Description" DefaultValue="Go to the HOME tab and click 'Open Toolbox' to start." />
+        <bt:String id="OpenToolbox.Tooltip" DefaultValue="Open the Slide Toolbox task pane for alignment, symbols, and more." />
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>

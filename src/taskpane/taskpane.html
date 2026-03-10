@@ -1,22 +1,17 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PowerPoint Toolbox</title>
+    <title>Slide Toolbox</title>
+    <!-- Office.js must load before the add-in bundle -->
+    <script
+      type="text/javascript"
+      src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"
+    ></script>
   </head>
-  <body class="ms-font-m ms-welcome ms-Fabric">
-    <header class="ms-welcome__header ms-bgColor-themeDark ms-u-fadeIn500">
-      <h1 class="ms-font-su ms-fontColor-white">PowerPoint Toolbox</h1>
-    </header>
-    <section id="sideload-msg" class="ms-welcome__main">
-      <h2 class="ms-font-xl">Please <a target="_blank" href="https://learn.microsoft.com/office/dev/add-ins/testing/test-debug-office-add-ins">sideload</a> your add-in to see app body.</h2>
-    </section>
-    <main id="app-body" class="ms-welcome__main" style="display: none;">
-      <div id="toolbox-container">
-        <!-- Toolbox sections will be rendered here -->
-      </div>
-    </main>
+  <body>
+    <div id="root"></div>
   </body>
 </html>

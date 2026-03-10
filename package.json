@@ -1,7 +1,7 @@
 {
   "name": "powerpoint-toolbox",
   "version": "1.0.0",
-  "description": "A PowerPoint add-in toolbox",
+  "description": "PowerPoint Slide Toolbox add-in",
   "scripts": {
     "build": "webpack --mode production",
     "build:dev": "webpack --mode development",
@@ -10,14 +10,20 @@
     "start:desktop": "office-addin-debugging start manifest.xml desktop",
     "stop": "office-addin-debugging stop manifest.xml",
     "validate": "office-addin-manifest validate manifest.xml",
-    "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix"
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix"
   },
   "dependencies": {
-    "@microsoft/office-js": "^1.1.0"
+    "@fluentui/react-components": "^9.46.0",
+    "@fluentui/react-icons": "^2.0.0",
+    "@microsoft/office-js": "^1.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@types/office-js": "^1.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "copy-webpack-plugin": "^12.0.0",
@@ -25,8 +31,8 @@
     "eslint": "^8.0.0",
     "html-webpack-plugin": "^5.0.0",
     "office-addin-debugging": "^5.0.0",
-    "office-addin-manifest": "^2.0.0",
     "office-addin-dev-certs": "^2.0.0",
+    "office-addin-manifest": "^2.0.0",
     "style-loader": "^4.0.0",
     "ts-loader": "^9.0.0",
     "typescript": "^5.0.0",

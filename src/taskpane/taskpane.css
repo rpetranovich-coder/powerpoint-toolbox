@@ -1,28 +1,31 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 html,
 body {
-  width: 100%;
-  height: 100%;
   margin: 0;
   padding: 0;
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  height: 100%;
+  overflow: hidden;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 13px;
 }
 
-.ms-welcome__header {
-  padding: 20px;
-  text-align: center;
+#root {
+  height: 100%;
 }
 
-.ms-welcome__main {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px;
-  gap: 16px;
+/* Thin scrollbar for the panel */
+::-webkit-scrollbar {
+  width: 6px;
 }
-
-#toolbox-container {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
 }

@@ -12,9 +12,9 @@ async function getHttpsOptions() {
 module.exports = async (env, options) => {
   const dev = options.mode === "development";
   const config = {
-    devtool: "source-map",
+    devtool: dev ? "source-map" : false,
     entry: {
-      taskpane: ["./src/taskpane/taskpane.ts"],
+      taskpane: ["./src/taskpane/index.tsx"],
       commands: "./src/commands/commands.ts",
     },
     output: {
@@ -22,12 +22,12 @@ module.exports = async (env, options) => {
       clean: true,
     },
     resolve: {
-      extensions: [".ts", ".js"],
+      extensions: [".ts", ".tsx", ".js", ".jsx"],
     },
     module: {
       rules: [
         {
-          test: /\.ts$/,
+          test: /\.[jt]sx?$/,
           exclude: /node_modules/,
           use: {
             loader: "ts-loader",
@@ -66,7 +66,10 @@ module.exports = async (env, options) => {
       },
       server: {
         type: "https",
-        options: env.WEBPACK_BUILD || options.https !== undefined ? options.https : await getHttpsOptions(),
+        options:
+          env && env.WEBPACK_BUILD
+            ? options.https
+            : await getHttpsOptions(),
       },
       port: 3000,
     },

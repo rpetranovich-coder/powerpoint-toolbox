@@ -5,38 +5,48 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run dev-server      # Start local HTTPS dev server on port 3000
-npm run start           # Sideload add-in into PowerPoint (web)
-npm run start:desktop   # Sideload add-in into PowerPoint (desktop)
-npm run stop            # Stop the sideloaded add-in
-npm run build           # Production build to dist/
-npm run build:dev       # Development build to dist/
-npm run validate        # Validate manifest.xml schema
-npm run lint            # ESLint TypeScript files
-npm run lint:fix        # Auto-fix lint issues
+npm run dev-server         # Start HTTPS dev server on https://localhost:3000
+npm run start              # Sideload + open in PowerPoint (web/desktop auto-detect)
+npm run start:desktop      # Force sideload into desktop PowerPoint
+npm run stop               # Stop sideloaded add-in
+npm run build              # Production build → dist/
+npm run build:dev          # Dev build → dist/
+npm run validate           # Validate manifest.xml schema
+npm run lint               # ESLint .ts / .tsx
+npm run lint:fix           # Auto-fix lint issues
 ```
 
 ## Architecture
 
-This is a **PowerPoint Office Add-in** using the [Office.js](https://learn.microsoft.com/office/dev/add-ins/) platform (TypeScript + Webpack).
+**PowerPoint Office Add-in** — TypeScript + React 18 + Fluent UI v9 + Webpack.
+Entry: `src/taskpane/index.tsx` → mounts React inside `Office.onReady()`.
 
-### Key concepts
+### Key directories
 
-- **manifest.xml** — declares the add-in identity, permissions, and where to load HTML/JS from. The dev server URL (`https://localhost:3000`) is hardcoded here; update all URLs before production deployment.
-- **Task pane** (`src/taskpane/`) — the sidebar UI that opens in PowerPoint. Entry point is `taskpane.ts`, which calls `Office.onReady()` before touching any Office APIs.
-- **Commands** (`src/commands/`) — background JS for ribbon button actions that run without opening the task pane.
-- **assets/** — icon files referenced in the manifest (required sizes: 16, 32, 64, 80 px PNG).
+| Path | Purpose |
+|---|---|
+| `src/lib/geometry.ts` | **Pure math** — alignment, edge-based distribution, nudge. No Office deps; fully unit-testable. |
+| `src/lib/ppt.ts` | **All Office.js operations.** Imports geometry helpers. Exposes async functions called by React components. |
+| `src/lib/symbols.ts` | Inline SVG strings for Harvey balls, stoplights, arrows. |
+| `src/taskpane/App.tsx` | Root React component. Manages selection count (via `DocumentSelectionChanged` event) and toast state. |
+| `src/taskpane/components/` | One panel component per feature section (Align, Group, Comment, Symbols, Footnote, Status). |
+| `manifest.xml` | Add-in identity, ribbon button ("Open Toolbox" on Home tab), resource URLs pointing to `localhost:3000`. |
 
-### Office.js API entry point
+### Office.js API notes
 
-All Office API calls must happen inside the `Office.onReady()` callback (or after `await Office.onReady()`). Use `PowerPoint.run(async (context) => { ... })` for the PowerPoint-specific API with auto-commit.
+- `context.presentation.getSelectedShapes()` → `ShapeScopedCollection` (PowerPointApi 1.5+)
+- Z-order enum: `PowerPoint.ShapeZOrder` (not `ShapeZOrderType`)
+- `addSvgImage` exists at runtime (PowerPointApi 1.6+) but is absent from `@types/office-js`; called via `(slide.shapes as any).addSvgImage(...)`
+- Paragraph alignment property: `paragraphFormat.horizontalAlignment` (not `.alignment`)
+- Slide default: 960 × 540 pt (widescreen 16:9) — update `SLIDE_WIDTH_PT`/`SLIDE_HEIGHT_PT` in `ppt.ts` for 4:3
 
-### Dev workflow
+### Shape naming convention
 
-1. Run `npm run dev-server` to start the HTTPS server.
-2. Open PowerPoint and sideload via `npm run start` (or manually via **Insert > Add-ins > Upload My Add-in** using `manifest.xml`).
-3. The task pane loads from `https://localhost:3000/taskpane.html`.
+| Shape | Name pattern |
+|---|---|
+| Sticky comment | `TBX_COMMENT_<timestamp>` |
+| Footnote | `TBX_FOOTNOTE` |
+| Source | `TBX_SOURCE` |
+| Status label | `TBX_STATUS` |
 
-### Build output
-
-Webpack bundles `src/taskpane/taskpane.ts` and `src/commands/commands.ts` into `dist/`, along with the HTML templates and assets. The `dist/` folder is what gets served/deployed.
+Footnote/Source/Status are upserted: if a shape with that name exists on the current slide, its text is updated instead of creating a duplicate.
