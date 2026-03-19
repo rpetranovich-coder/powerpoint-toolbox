@@ -3,11 +3,6 @@ import {
   FluentProvider,
   webLightTheme,
   makeStyles,
-  Accordion,
-  AccordionHeader,
-  AccordionItem,
-  AccordionPanel,
-  Text,
   tokens,
 } from "@fluentui/react-components";
 import { Toast } from "./components/Toast";
@@ -17,6 +12,9 @@ import { CommentPanel } from "./components/CommentPanel";
 import { SymbolsPanel } from "./components/SymbolsPanel";
 import { FootnotePanel } from "./components/FootnotePanel";
 import { StatusPanel } from "./components/StatusPanel";
+import { FontPanel } from "./components/FontPanel";
+import { TablePanel } from "./components/TablePanel";
+import { GuidesPanel } from "./components/GuidesPanel";
 import { getSelectionInfo } from "../lib/ppt";
 
 interface ToastState {
@@ -33,37 +31,62 @@ const useStyles = makeStyles({
     overflow: "hidden",
     backgroundColor: tokens.colorNeutralBackground1,
   },
+
+  // ── Header ──────────────────────────────────────────────────────────────
   header: {
-    padding: "10px 12px 8px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "8px 12px",
     backgroundColor: tokens.colorBrandBackground,
     color: tokens.colorNeutralForegroundOnBrand,
     flexShrink: 0,
+    gap: "8px",
   },
   headerTitle: {
     fontWeight: "700",
-    fontSize: "14px",
+    fontSize: "13px",
+    letterSpacing: "0.1px",
   },
-  headerSub: {
+  headerSel: {
     fontSize: "11px",
-    opacity: 0.85,
+    opacity: 0.75,
+    whiteSpace: "nowrap",
   },
+
+  // ── Toast ───────────────────────────────────────────────────────────────
   toastArea: {
-    padding: "0 10px",
     flexShrink: 0,
+    padding: "0 10px",
   },
+
+  // ── Scroll container ────────────────────────────────────────────────────
   scrollArea: {
     flex: 1,
     overflowY: "auto",
-    padding: "4px 8px 16px",
+    // Custom scrollbar — matches Office task panes
+    scrollbarWidth: "thin",
+    scrollbarColor: `${tokens.colorNeutralStroke1} transparent`,
   },
-  accordionPanel: {
-    padding: "6px 4px 10px",
+
+  // ── Section divider ──────────────────────────────────────────────────────
+  sectionDivider: {
+    border: "none",
+    borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
+    margin: "0",
+  },
+
+  // ── Panel body ───────────────────────────────────────────────────────────
+  panelBody: {
+    padding: "6px 8px",
   },
 });
 
 export const App: React.FC = () => {
   const styles = useStyles();
+
   const [selectionCount, setSelectionCount] = useState(0);
+  const [selectedCommentName, setSelectedCommentName] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const toastIdRef = useRef(0);
 
@@ -77,7 +100,6 @@ export const App: React.FC = () => {
 
   const dismissToast = useCallback(() => setToast(null), []);
 
-  // Listen for selection changes via Office.js event
   useEffect(() => {
     let handlerId: string | null = null;
 
@@ -85,15 +107,15 @@ export const App: React.FC = () => {
       try {
         const info = await getSelectionInfo();
         setSelectionCount(info.count);
+        setSelectedCommentName(info.selectedCommentName);
       } catch {
         setSelectionCount(0);
+        setSelectedCommentName(null);
       }
     };
 
-    // Initial read
     refresh();
 
-    // Register selection change handler
     try {
       Office.context.document.addHandlerAsync(
         Office.EventType.DocumentSelectionChanged,
@@ -105,7 +127,6 @@ export const App: React.FC = () => {
         }
       );
     } catch {
-      // Fall back to polling if addHandlerAsync not available
       const interval = setInterval(refresh, 1500);
       return () => clearInterval(interval);
     }
@@ -133,13 +154,14 @@ export const App: React.FC = () => {
   return (
     <FluentProvider theme={webLightTheme}>
       <div className={styles.root}>
-        {/* Header */}
+
+        {/* ── Header ── */}
         <div className={styles.header}>
-          <div className={styles.headerTitle}>Slide Toolbox</div>
-          <div className={styles.headerSub}>{selLabel}</div>
+          <span className={styles.headerTitle}>Slide Toolbox</span>
+          <span className={styles.headerSel}>{selLabel}</span>
         </div>
 
-        {/* Toast area */}
+        {/* ── Toast ── */}
         <div className={styles.toastArea}>
           {toast && (
             <Toast
@@ -151,57 +173,53 @@ export const App: React.FC = () => {
           )}
         </div>
 
-        {/* Scrollable accordion */}
+        {/* ── Flat sections ── */}
         <div className={styles.scrollArea}>
-          <Accordion multiple collapsible defaultOpenItems={["align"]}>
-            <AccordionItem value="align">
-              <AccordionHeader>Alignment &amp; Spacing</AccordionHeader>
-              <AccordionPanel className={styles.accordionPanel}>
-                <AlignPanel
-                  selectionCount={selectionCount}
-                  showToast={showToast}
-                />
-              </AccordionPanel>
-            </AccordionItem>
 
-            <AccordionItem value="group">
-              <AccordionHeader>Grouping &amp; Order</AccordionHeader>
-              <AccordionPanel className={styles.accordionPanel}>
-                <GroupPanel
-                  selectionCount={selectionCount}
-                  showToast={showToast}
-                />
-              </AccordionPanel>
-            </AccordionItem>
+          <div className={styles.panelBody}>
+            <AlignPanel selectionCount={selectionCount} showToast={showToast} />
+          </div>
 
-            <AccordionItem value="comment">
-              <AccordionHeader>Sticky Comment</AccordionHeader>
-              <AccordionPanel className={styles.accordionPanel}>
-                <CommentPanel showToast={showToast} />
-              </AccordionPanel>
-            </AccordionItem>
+          <hr className={styles.sectionDivider} />
+          <div className={styles.panelBody}>
+            <GroupPanel selectionCount={selectionCount} showToast={showToast} />
+          </div>
 
-            <AccordionItem value="symbols">
-              <AccordionHeader>Symbols</AccordionHeader>
-              <AccordionPanel className={styles.accordionPanel}>
-                <SymbolsPanel showToast={showToast} />
-              </AccordionPanel>
-            </AccordionItem>
+          <hr className={styles.sectionDivider} />
+          <div className={styles.panelBody}>
+            <CommentPanel selectedCommentName={selectedCommentName} showToast={showToast} />
+          </div>
 
-            <AccordionItem value="footnote">
-              <AccordionHeader>Footnote / Source</AccordionHeader>
-              <AccordionPanel className={styles.accordionPanel}>
-                <FootnotePanel showToast={showToast} />
-              </AccordionPanel>
-            </AccordionItem>
+          <hr className={styles.sectionDivider} />
+          <div className={styles.panelBody}>
+            <SymbolsPanel showToast={showToast} />
+          </div>
 
-            <AccordionItem value="status">
-              <AccordionHeader>Status Label</AccordionHeader>
-              <AccordionPanel className={styles.accordionPanel}>
-                <StatusPanel showToast={showToast} />
-              </AccordionPanel>
-            </AccordionItem>
-          </Accordion>
+          <hr className={styles.sectionDivider} />
+          <div className={styles.panelBody}>
+            <TablePanel showToast={showToast} />
+          </div>
+
+          <hr className={styles.sectionDivider} />
+          <div className={styles.panelBody}>
+            <FontPanel showToast={showToast} />
+          </div>
+
+          <hr className={styles.sectionDivider} />
+          <div className={styles.panelBody}>
+            <GuidesPanel showToast={showToast} />
+          </div>
+
+          <hr className={styles.sectionDivider} />
+          <div className={styles.panelBody}>
+            <FootnotePanel showToast={showToast} />
+          </div>
+
+          <hr className={styles.sectionDivider} />
+          <div className={styles.panelBody}>
+            <StatusPanel showToast={showToast} />
+          </div>
+
         </div>
       </div>
     </FluentProvider>

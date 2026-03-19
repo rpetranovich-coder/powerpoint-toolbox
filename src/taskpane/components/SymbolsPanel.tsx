@@ -2,11 +2,10 @@ import React, { useState } from "react";
 import {
   makeStyles,
   Button,
-  Text,
-  tokens,
   ToggleButton,
   Divider,
   Tooltip,
+  tokens,
 } from "@fluentui/react-components";
 import { insertSymbol } from "../../lib/ppt";
 import { ALL_SYMBOL_GROUPS, Symbol } from "../../lib/symbols";
@@ -22,19 +21,15 @@ const SIZE_OPTIONS: { label: string; pt: number }[] = [
 ];
 
 const useStyles = makeStyles({
-  root: { display: "flex", flexDirection: "column", gap: "6px" },
-  sizeRow: { display: "flex", gap: "4px", alignItems: "center" },
-  symbolRow: { display: "flex", flexWrap: "wrap", gap: "4px" },
-  symbolBtn: { minWidth: "32px", padding: "2px 4px" },
-  label: { fontSize: "11px", color: tokens.colorNeutralForeground2 },
-  divider: { margin: "4px 0" },
+  root:      { display: "flex", flexDirection: "column", gap: "4px" },
+  sizeRow:   { display: "flex", gap: "4px", alignItems: "center" },
+  symbolRow: { display: "flex", flexWrap: "wrap", gap: "3px" },
+  symbolBtn: { minWidth: "28px", padding: "2px 3px" },
+  divider:   { margin: "2px 0" },
+  sizeLabel: { fontSize: "10px", color: tokens.colorNeutralForeground3 },
 });
 
-/** Render inline SVG in a button icon slot */
-const SvgIcon: React.FC<{ svg: string; size?: number }> = ({
-  svg,
-  size = 20,
-}) => (
+const SvgIcon: React.FC<{ svg: string; size?: number }> = ({ svg, size = 18 }) => (
   <span
     style={{ display: "inline-flex", width: size, height: size }}
     dangerouslySetInnerHTML={{ __html: svg }}
@@ -46,45 +41,30 @@ export const SymbolsPanel: React.FC<SymbolsPanelProps> = ({ showToast }) => {
   const [sizePt, setSizePt] = useState(28);
 
   const handleInsert = async (symbol: Symbol) => {
-    try {
-      await insertSymbol(symbol.svg, sizePt);
-      showToast(`${symbol.label} inserted`, "success");
-    } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : String(e), "error");
-    }
+    try { await insertSymbol(symbol.svg, sizePt); showToast(`${symbol.label} inserted`, "success"); }
+    catch (e: unknown) { showToast(e instanceof Error ? e.message : String(e), "error"); }
   };
 
   return (
     <div className={styles.root}>
-      {/* Size picker */}
       <div className={styles.sizeRow}>
-        <Text className={styles.label}>Size:</Text>
+        <span className={styles.sizeLabel}>Size:</span>
         {SIZE_OPTIONS.map((opt) => (
-          <ToggleButton
-            key={opt.pt}
-            size="small"
-            checked={sizePt === opt.pt}
-            onClick={() => setSizePt(opt.pt)}
-          >
-            {opt.label} ({opt.pt}pt)
+          <ToggleButton key={opt.pt} size="small" checked={sizePt === opt.pt} onClick={() => setSizePt(opt.pt)}>
+            {opt.label}
           </ToggleButton>
         ))}
       </div>
 
-      {/* Symbol groups */}
       {ALL_SYMBOL_GROUPS.map((group, gi) => (
         <React.Fragment key={group.groupId}>
           {gi > 0 && <Divider className={styles.divider} />}
-          <Text className={styles.label}>{group.label}</Text>
           <div className={styles.symbolRow}>
             {group.symbols.map((sym) => (
               <Tooltip key={sym.id} content={sym.label} relationship="label">
-                <Button
-                  className={styles.symbolBtn}
-                  size="small"
-                  icon={<SvgIcon svg={sym.svg} size={18} />}
-                  onClick={() => handleInsert(sym)}
-                />
+                <Button className={styles.symbolBtn} size="small"
+                  icon={<SvgIcon svg={sym.svg} size={16} />}
+                  onClick={() => handleInsert(sym)} />
               </Tooltip>
             ))}
           </div>

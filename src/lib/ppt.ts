@@ -22,7 +22,6 @@ import {
   computeMatchWidth,
   computeMatchHeight,
   computeEqualizeSize,
-  computeNudge,
 } from "./geometry";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -34,7 +33,38 @@ export const SLIDE_HEIGHT_PT = 540;
 
 export interface SelectionInfo {
   count: number;
+  selectedCommentName: string | null;
 }
+
+export interface StickyCommentTemplate {
+  width: number;
+  height: number;
+  fillColor: string;       // hex without #
+  borderColor: string;     // hex without #
+  borderWeight: number;
+  borderVisible: boolean;
+  fontSize: number;
+  fontColor: string;       // hex without #
+  fontBold: boolean;
+  fontItalic: boolean;
+  fontName: string;
+  defaultText: string;
+}
+
+export const DEFAULT_COMMENT_TEMPLATE: StickyCommentTemplate = {
+  width: 220,
+  height: 120,
+  fillColor: "FFF2CC",
+  borderColor: "D6B656",
+  borderWeight: 1,
+  borderVisible: true,
+  fontSize: 12,
+  fontColor: "333333",
+  fontBold: false,
+  fontItalic: false,
+  fontName: "Segoe UI",
+  defaultText: "COMMENT: <type here>",
+};
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -103,10 +133,11 @@ export async function getSelectionInfo(): Promise<SelectionInfo> {
   try {
     return await PowerPoint.run(async (context) => {
       const items = await getSelectedShapesItems(context);
-      return { count: items.length };
+      const comment = items.find((s) => s.name?.startsWith("TBX_COMMENT_"));
+      return { count: items.length, selectedCommentName: comment?.name ?? null };
     });
   } catch {
-    return { count: 0 };
+    return { count: 0, selectedCommentName: null };
   }
 }
 
@@ -174,22 +205,6 @@ export async function matchSize(
       case "height": updates = computeMatchHeight(boxes);  break;
       case "both":   updates = computeEqualizeSize(boxes); break;
     }
-    applyUpdates(shapes, updates);
-    await context.sync();
-  });
-}
-
-// ─── Nudge ────────────────────────────────────────────────────────────────────
-
-export async function nudgeShapes(
-  direction: "left" | "right" | "up" | "down",
-  amount: number
-): Promise<void> {
-  await PowerPoint.run(async (context) => {
-    const shapes = await getSelectedShapesItems(context);
-    if (shapes.length === 0) throw new Error("Select at least one shape to nudge.");
-    const boxes = shapesToBoxes(shapes);
-    const updates = computeNudge(boxes, direction, amount);
     applyUpdates(shapes, updates);
     await context.sync();
   });
@@ -268,21 +283,21 @@ export async function setZOrder(type: ZOrderType): Promise<void> {
 
 // ─── Sticky Comment ───────────────────────────────────────────────────────────
 
-export async function insertStickyComment(): Promise<void> {
+export async function insertStickyComment(
+  template: StickyCommentTemplate = DEFAULT_COMMENT_TEMPLATE
+): Promise<void> {
   await PowerPoint.run(async (context) => {
     const slide = await getActiveSlide(context);
 
-    // Try to find a reference position from selection
-    let refLeft = SLIDE_WIDTH_PT / 2 - 110;
-    let refTop  = SLIDE_HEIGHT_PT / 2 - 60;
+    let refLeft = SLIDE_WIDTH_PT / 2 - template.width / 2;
+    let refTop  = SLIDE_HEIGHT_PT / 2 - template.height / 2;
 
     try {
       const sel = await getSelectedShapesItems(context);
       if (sel.length > 0) {
-        // Place to the right of the rightmost selected shape
         const maxRight = Math.max(...sel.map((s) => s.left + s.width));
         const minTop   = Math.min(...sel.map((s) => s.top));
-        refLeft = Math.min(maxRight + 16, SLIDE_WIDTH_PT - 240);
+        refLeft = Math.min(maxRight + 16, SLIDE_WIDTH_PT - template.width - 10);
         refTop  = minTop + 16;
       }
     } catch {
@@ -291,17 +306,15 @@ export async function insertStickyComment(): Promise<void> {
 
     const shape = slide.shapes.addGeometricShape(
       PowerPoint.GeometricShapeType.rectangle,
-      { left: refLeft, top: refTop, width: 220, height: 120 }
+      { left: refLeft, top: refTop, width: template.width, height: template.height }
     );
     shape.name = `TBX_COMMENT_${Date.now()}`;
 
-    // Fill + border
-    shape.fill.setSolidColor("FFF2CC");
-    shape.lineFormat.color = "D6B656";
-    shape.lineFormat.weight = 1;
-    shape.lineFormat.visible = true;
+    shape.fill.setSolidColor(template.fillColor);
+    shape.lineFormat.color   = template.borderColor;
+    shape.lineFormat.weight  = template.borderWeight;
+    shape.lineFormat.visible = template.borderVisible;
 
-    // Text
     const tf = shape.textFrame;
     tf.autoSizeSetting = PowerPoint.ShapeAutoSize.autoSizeShapeToFitText;
     tf.leftMargin  = 6;
@@ -309,13 +322,54 @@ export async function insertStickyComment(): Promise<void> {
     tf.topMargin   = 4;
 
     const range = tf.textRange;
-    range.text = "COMMENT: <type here>";
-    range.font.name = "Segoe UI";
-    range.font.size = 12;
-    range.font.color = "333333";
-    range.font.bold  = false;
+    range.text        = template.defaultText;
+    range.font.name   = template.fontName;
+    range.font.size   = template.fontSize;
+    range.font.color  = template.fontColor;
+    range.font.bold   = template.fontBold;
+    range.font.italic = template.fontItalic;
 
     await context.sync();
+  });
+}
+
+export async function readCommentTemplate(
+  shapeName: string
+): Promise<StickyCommentTemplate> {
+  return await PowerPoint.run(async (context) => {
+    const slide = await getActiveSlide(context);
+
+    slide.shapes.load("items/name");
+    await context.sync();
+
+    const shape = slide.shapes.items.find((s) => s.name === shapeName);
+    if (!shape) throw new Error("Comment shape not found on the current slide.");
+
+    shape.load(
+      "width,height,fill/foregroundColor,lineFormat/color,lineFormat/weight,lineFormat/visible"
+    );
+    shape.textFrame.textRange.load(
+      "text,font/size,font/color,font/bold,font/italic,font/name"
+    );
+    await context.sync();
+
+    const strip = (c: string | undefined | null): string =>
+      (c ?? "").replace(/^#/, "");
+
+    return {
+      width:         shape.width,
+      height:        shape.height,
+      fillColor:     strip(shape.fill.foregroundColor)              || "FFF2CC",
+      borderColor:   strip(shape.lineFormat.color)                  || "D6B656",
+      borderWeight:  shape.lineFormat.weight                        ?? 1,
+      borderVisible: shape.lineFormat.visible                       ?? true,
+      fontSize:      shape.textFrame.textRange.font.size            ?? 12,
+      fontColor:     strip(shape.textFrame.textRange.font.color)    || "333333",
+      fontBold:      shape.textFrame.textRange.font.bold            ?? false,
+      fontItalic:    shape.textFrame.textRange.font.italic          ?? false,
+      fontName:      shape.textFrame.textRange.font.name            ?? "Segoe UI",
+      defaultText:   shape.textFrame.textRange.text                 ?? "COMMENT: <type here>",
+    };
   });
 }
 
@@ -486,6 +540,114 @@ export async function insertStatusLabel(text: string): Promise<void> {
     tf.textRange.paragraphFormat.horizontalAlignment =
       PowerPoint.ParagraphHorizontalAlignment.right;
 
+    await context.sync();
+  });
+}
+
+// ─── Font standardization ─────────────────────────────────────────────────────
+
+/**
+ * Sets the font name on every text-bearing shape on the current slide.
+ * Works at the textRange level — covers most cases.  Run-level overrides
+ * inside mixed-font text boxes may require a future deep-iterate enhancement.
+ */
+export async function standardizeFont(fontName: string): Promise<void> {
+  await PowerPoint.run(async (context) => {
+    const slide = await getActiveSlide(context);
+    slide.shapes.load("items/type");
+    await context.sync();
+
+    for (const shape of slide.shapes.items) {
+      // Skip pure image / line shapes that carry no editable text
+      if (
+        shape.type === PowerPoint.ShapeType.image ||
+        shape.type === PowerPoint.ShapeType.line
+      ) continue;
+
+      try {
+        shape.textFrame.textRange.font.name = fontName;
+      } catch {
+        // Shape has no accessible text frame — skip silently
+      }
+    }
+
+    await context.sync();
+  });
+}
+
+// ─── Table insertion ──────────────────────────────────────────────────────────
+
+export async function insertTable(rows: number, cols: number): Promise<void> {
+  await PowerPoint.run(async (context) => {
+    const slide  = await getActiveSlide(context);
+    const width  = Math.min(640, SLIDE_WIDTH_PT  - 80);
+    const height = Math.max(rows * 32, 80);
+    const left   = (SLIDE_WIDTH_PT  - width)  / 2;
+    const top    = (SLIDE_HEIGHT_PT - height) / 2;
+
+    try {
+      // addTable is available in Microsoft 365 but not yet typed in @types/office-js
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (slide.shapes as any).addTable(rows, cols, { left, top, width, height });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`Table insertion requires Microsoft 365 current channel. (${msg})`);
+    }
+
+    await context.sync();
+  });
+}
+
+// ─── Column guides ────────────────────────────────────────────────────────────
+
+const GUIDE_PREFIX    = "TBX_GUIDE_COL_";
+const GUIDE_COLOR     = "BDD7EE"; // soft blue — clearly visible but non-distracting
+const GUIDE_MARGIN_PT = 40;       // standard content margin from slide edge
+
+/**
+ * Inserts N+1 thin vertical guide lines dividing the slide into `columns` equal
+ * columns within the standard 40pt content margin.  Existing guides are replaced.
+ * Each guide is sent to back so it doesn't obscure content.
+ */
+export async function insertColumnGuides(columns: number): Promise<void> {
+  await PowerPoint.run(async (context) => {
+    const slide = await getActiveSlide(context);
+
+    // Clear any existing guides first
+    slide.shapes.load("items/name");
+    await context.sync();
+    const old = slide.shapes.items.filter((s) => s.name?.startsWith(GUIDE_PREFIX));
+    for (const s of old) s.delete();
+    if (old.length > 0) await context.sync();
+
+    const contentWidth = SLIDE_WIDTH_PT - GUIDE_MARGIN_PT * 2;
+    const colWidth     = contentWidth / columns;
+
+    for (let i = 0; i <= columns; i++) {
+      const x     = GUIDE_MARGIN_PT + i * colWidth;
+      const guide = slide.shapes.addGeometricShape(
+        PowerPoint.GeometricShapeType.rectangle,
+        { left: x - 0.5, top: 0, width: 1, height: SLIDE_HEIGHT_PT }
+      );
+      guide.name = `${GUIDE_PREFIX}${i}`;
+      guide.fill.setSolidColor(GUIDE_COLOR);
+      guide.lineFormat.visible = false;
+      guide.setZOrder(PowerPoint.ShapeZOrder.sendToBack);
+    }
+
+    await context.sync();
+  });
+}
+
+export async function clearColumnGuides(): Promise<void> {
+  await PowerPoint.run(async (context) => {
+    const slide = await getActiveSlide(context);
+    slide.shapes.load("items/name");
+    await context.sync();
+
+    const guides = slide.shapes.items.filter((s) => s.name?.startsWith(GUIDE_PREFIX));
+    if (guides.length === 0) throw new Error("No column guides found on this slide.");
+    for (const s of guides) s.delete();
     await context.sync();
   });
 }
