@@ -34,20 +34,18 @@ export const TablePanel: React.FC<TablePanelProps> = ({ showToast }) => {
       <span className={styles.muted}>R</span>
       <Input
         className={styles.numInput}
-        size="small"
-        type="number"
+               type="text" inputMode="numeric"
         value={String(rows)}
         onChange={(_, d) => setRows(clamp(Number(d.value) || 1, 1, 20))}
       />
       <span className={styles.muted}>C</span>
       <Input
         className={styles.numInput}
-        size="small"
-        type="number"
+               type="text" inputMode="numeric"
         value={String(cols)}
         onChange={(_, d) => setCols(clamp(Number(d.value) || 1, 1, 10))}
       />
-      <Button size="small" onClick={handleInsert}>
+      <Button onClick={handleInsert}>
         Insert Table
       </Button>
     </div>

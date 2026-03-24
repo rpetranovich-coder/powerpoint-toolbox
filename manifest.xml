@@ -8,9 +8,9 @@
 
   <Id>f8c6f238-2f66-40ae-a3be-09fb63965a95</Id>
   <Version>1.0.0.0</Version>
-  <ProviderName>Slide Toolbox</ProviderName>
+  <ProviderName>RP Toolbox</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="Slide Toolbox" />
+  <DisplayName DefaultValue="RP Toolbox" />
   <Description DefaultValue="Consulting-grade slide tools: align, distribute, symbols, footnotes, status labels." />
 
   <IconUrl DefaultValue="https://rpetranovich-coder.github.io/powerpoint-toolbox/assets/icon-32.png" />
@@ -83,13 +83,13 @@
         <bt:Url id="Taskpane.Url" DefaultValue="https://rpetranovich-coder.github.io/powerpoint-toolbox/taskpane.html" />
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="GetStarted.Title" DefaultValue="Slide Toolbox is ready!" />
-        <bt:String id="ToolboxGroup.Label" DefaultValue="Slide Toolbox" />
+        <bt:String id="GetStarted.Title" DefaultValue="RP Toolbox is ready!" />
+        <bt:String id="ToolboxGroup.Label" DefaultValue="RP Toolbox" />
         <bt:String id="OpenToolbox.Label" DefaultValue="Open Toolbox" />
       </bt:ShortStrings>
       <bt:LongStrings>
         <bt:String id="GetStarted.Description" DefaultValue="Go to the HOME tab and click 'Open Toolbox' to start." />
-        <bt:String id="OpenToolbox.Tooltip" DefaultValue="Open the Slide Toolbox task pane for alignment, symbols, and more." />
+        <bt:String id="OpenToolbox.Tooltip" DefaultValue="Open the RP Toolbox task pane for alignment, symbols, and more." />
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>

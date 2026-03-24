@@ -28,10 +28,10 @@ export const GroupPanel: React.FC<GroupPanelProps> = ({ selectionCount, showToas
   return (
     <div className={styles.root}>
       <div className={styles.row}>
-        <Button size="small" disabled={!can2} onClick={() => run(groupShapes, "Grouped")}>
+        <Button disabled={!can2} onClick={() => run(groupShapes, "Grouped")}>
           Group
         </Button>
-        <Button size="small" disabled={!can1} onClick={() => run(ungroupShapes, "Ungrouped")}>
+        <Button disabled={!can1} onClick={() => run(ungroupShapes, "Ungrouped")}>
           Ungroup
         </Button>
       </div>
@@ -39,10 +39,10 @@ export const GroupPanel: React.FC<GroupPanelProps> = ({ selectionCount, showToas
       <Divider className={styles.divider} />
 
       <div className={styles.row}>
-        <Button size="small" disabled={!can1} onClick={() => z("bringToFront", "Brought to front")}>▲▲ Front</Button>
-        <Button size="small" disabled={!can1} onClick={() => z("bringForward",  "Brought forward")} >▲ Forward</Button>
-        <Button size="small" disabled={!can1} onClick={() => z("sendToBack",    "Sent to back")}    >▼▼ Back</Button>
-        <Button size="small" disabled={!can1} onClick={() => z("sendBackward",  "Sent backward")}  >▼ Backward</Button>
+        <Button disabled={!can1} onClick={() => z("bringToFront", "Brought to front")}>▲▲ Front</Button>
+        <Button disabled={!can1} onClick={() => z("bringForward",  "Brought forward")} >▲ Forward</Button>
+        <Button disabled={!can1} onClick={() => z("sendToBack",    "Sent to back")}    >▼▼ Back</Button>
+        <Button disabled={!can1} onClick={() => z("sendBackward",  "Sent backward")}  >▼ Backward</Button>
       </div>
     </div>
   );

@@ -27,22 +27,20 @@ export const GuidesPanel: React.FC<GuidesPanelProps> = ({ showToast }) => {
       {COL_OPTIONS.map((n) => (
         <ToggleButton
           key={n}
-          size="small"
           checked={guideCols === n}
+          appearance={guideCols === n ? "primary" : "secondary"}
           onClick={() => setGuideCols(n)}
         >
           {n}
         </ToggleButton>
       ))}
       <Button
-        size="small"
-        onClick={() => run(() => insertColumnGuides(guideCols), `${guideCols}-column guides inserted`)}
+               onClick={() => run(() => insertColumnGuides(guideCols), `${guideCols}-column guides inserted`)}
       >
         Guides
       </Button>
       <Button
-        size="small"
-        appearance="subtle"
+               appearance="subtle"
         onClick={() => run(clearColumnGuides, "Guides cleared")}
       >
         Clear

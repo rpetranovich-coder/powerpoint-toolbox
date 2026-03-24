@@ -41,27 +41,27 @@ export const AlignPanel: React.FC<AlignPanelProps> = ({ selectionCount, showToas
       {/* Align edges */}
       <div className={styles.row}>
         <Tooltip content="Align Left" relationship="label">
-          <Button size="small" icon={<AlignLeft20Regular />} disabled={!can2}
+          <Button icon={<AlignLeft20Regular />} disabled={!can2}
             onClick={() => run(() => alignShapes("left"), "Aligned left")} />
         </Tooltip>
         <Tooltip content="Center Horizontally" relationship="label">
-          <Button size="small" icon={<AlignCenterHorizontal20Regular />} disabled={!can2}
+          <Button icon={<AlignCenterHorizontal20Regular />} disabled={!can2}
             onClick={() => run(() => alignShapes("centerH"), "Centered horizontally")} />
         </Tooltip>
         <Tooltip content="Align Right" relationship="label">
-          <Button size="small" icon={<AlignRight20Regular />} disabled={!can2}
+          <Button icon={<AlignRight20Regular />} disabled={!can2}
             onClick={() => run(() => alignShapes("right"), "Aligned right")} />
         </Tooltip>
         <Tooltip content="Align Top" relationship="label">
-          <Button size="small" icon={<AlignTop20Regular />} disabled={!can2}
+          <Button icon={<AlignTop20Regular />} disabled={!can2}
             onClick={() => run(() => alignShapes("top"), "Aligned top")} />
         </Tooltip>
         <Tooltip content="Center Vertically" relationship="label">
-          <Button size="small" icon={<AlignCenterVertical20Regular />} disabled={!can2}
+          <Button icon={<AlignCenterVertical20Regular />} disabled={!can2}
             onClick={() => run(() => alignShapes("centerV"), "Centered vertically")} />
         </Tooltip>
         <Tooltip content="Align Bottom" relationship="label">
-          <Button size="small" icon={<AlignBottom20Regular />} disabled={!can2}
+          <Button icon={<AlignBottom20Regular />} disabled={!can2}
             onClick={() => run(() => alignShapes("bottom"), "Aligned bottom")} />
         </Tooltip>
       </div>
@@ -71,31 +71,31 @@ export const AlignPanel: React.FC<AlignPanelProps> = ({ selectionCount, showToas
       {/* Distribute + Match size on one row */}
       <div className={styles.row}>
         <Tooltip content="Distribute Horizontally" relationship="label">
-          <Button size="small" disabled={!can3}
+          <Button disabled={!can3}
             onClick={() => run(() => distributeShapes("horizontal"), "Distributed horizontally")}>
             ⟷ Horiz
           </Button>
         </Tooltip>
         <Tooltip content="Distribute Vertically" relationship="label">
-          <Button size="small" disabled={!can3}
+          <Button disabled={!can3}
             onClick={() => run(() => distributeShapes("vertical"), "Distributed vertically")}>
             ↕ Vert
           </Button>
         </Tooltip>
         <Tooltip content="Match Width" relationship="label">
-          <Button size="small" disabled={!can2}
+          <Button disabled={!can2}
             onClick={() => run(() => matchSize("width"), "Widths matched")}>
             ↔ W
           </Button>
         </Tooltip>
         <Tooltip content="Match Height" relationship="label">
-          <Button size="small" disabled={!can2}
+          <Button disabled={!can2}
             onClick={() => run(() => matchSize("height"), "Heights matched")}>
             ↕ H
           </Button>
         </Tooltip>
         <Tooltip content="Match Width & Height" relationship="label">
-          <Button size="small" disabled={!can2}
+          <Button disabled={!can2}
             onClick={() => run(() => matchSize("both"), "Sizes equalized")}>
             ⊞ Both
           </Button>

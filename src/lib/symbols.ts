@@ -94,7 +94,7 @@ const STOPLIGHTS: Symbol[] = [
 
 // ─── Arrows ───────────────────────────────────────────────────────────────────
 
-const ARROW_FILL = "#333333";
+const ARROW_FILL = "#ffffff";
 
 const ARROWS: Symbol[] = [
   {

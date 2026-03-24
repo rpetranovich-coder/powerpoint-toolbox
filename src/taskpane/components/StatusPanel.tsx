@@ -15,8 +15,9 @@ interface StatusPanelProps {
 const PRESETS = ["/PRELIMINARY", "/DRAFT", "/CONFIDENTIAL", "/INTERNAL", "(custom)"];
 
 const useStyles = makeStyles({
-  root:   { display: "flex", flexDirection: "column", gap: "6px" },
-  field:  { display: "flex", flexDirection: "column", gap: "2px" },
+  root:  { display: "flex", flexDirection: "column", gap: "2px" },
+  row:   { display: "flex", gap: "4px", alignItems: "flex-end" },
+  input: { flex: 1 },
 });
 
 export const StatusPanel: React.FC<StatusPanelProps> = ({ showToast }) => {
@@ -35,24 +36,24 @@ export const StatusPanel: React.FC<StatusPanelProps> = ({ showToast }) => {
 
   return (
     <div className={styles.root}>
-      <div className={styles.field}>
-        <Label size="small">Preset</Label>
-        <Select size="small" value={preset} onChange={(_, d) => setPreset(d.value)}>
-          {PRESETS.map((p) => <option key={p} value={p}>{p}</option>)}
-        </Select>
+      <Label>Status label</Label>
+      <div className={styles.row}>
+        {isCustom
+          ? <Input className={styles.input} placeholder="/YOUR-LABEL"
+              value={customText} onChange={(_, d) => setCustomText(d.value)} />
+          : <Select className={styles.input} value={preset} onChange={(_, d) => setPreset(d.value)}>
+              {PRESETS.map((p) => <option key={p} value={p}>{p}</option>)}
+            </Select>
+        }
+        <Button disabled={!effectiveText} onClick={handleInsert}>
+          Insert
+        </Button>
       </div>
-
       {isCustom && (
-        <div className={styles.field}>
-          <Label size="small">Custom label</Label>
-          <Input size="small" placeholder="/YOUR-LABEL"
-            value={customText} onChange={(_, d) => setCustomText(d.value)} />
-        </div>
+        <Button appearance="subtle" onClick={() => setPreset(PRESETS[0])}>
+          ← Back to presets
+        </Button>
       )}
-
-      <Button size="small" disabled={!effectiveText} onClick={handleInsert}>
-        Insert / Update Status
-      </Button>
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   FluentProvider,
-  webLightTheme,
+  webDarkTheme,
   makeStyles,
   tokens,
 } from "@fluentui/react-components";
@@ -15,6 +15,7 @@ import { StatusPanel } from "./components/StatusPanel";
 import { FontPanel } from "./components/FontPanel";
 import { TablePanel } from "./components/TablePanel";
 import { GuidesPanel } from "./components/GuidesPanel";
+import { AiPanel } from "./components/AiPanel";
 import { getSelectionInfo } from "../lib/ppt";
 
 interface ToastState {
@@ -30,28 +31,6 @@ const useStyles = makeStyles({
     height: "100vh",
     overflow: "hidden",
     backgroundColor: tokens.colorNeutralBackground1,
-  },
-
-  // ── Header ──────────────────────────────────────────────────────────────
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "8px 12px",
-    backgroundColor: tokens.colorBrandBackground,
-    color: tokens.colorNeutralForegroundOnBrand,
-    flexShrink: 0,
-    gap: "8px",
-  },
-  headerTitle: {
-    fontWeight: "700",
-    fontSize: "13px",
-    letterSpacing: "0.1px",
-  },
-  headerSel: {
-    fontSize: "11px",
-    opacity: 0.75,
-    whiteSpace: "nowrap",
   },
 
   // ── Toast ───────────────────────────────────────────────────────────────
@@ -87,6 +66,7 @@ export const App: React.FC = () => {
 
   const [selectionCount, setSelectionCount] = useState(0);
   const [selectedCommentName, setSelectedCommentName] = useState<string | null>(null);
+  const [selectedStoplightName, setSelectedStoplightName] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const toastIdRef = useRef(0);
 
@@ -108,9 +88,11 @@ export const App: React.FC = () => {
         const info = await getSelectionInfo();
         setSelectionCount(info.count);
         setSelectedCommentName(info.selectedCommentName);
+        setSelectedStoplightName(info.selectedStoplightName);
       } catch {
         setSelectionCount(0);
         setSelectedCommentName(null);
+        setSelectedStoplightName(null);
       }
     };
 
@@ -146,20 +128,9 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  const selLabel =
-    selectionCount === 0
-      ? "Nothing selected"
-      : `${selectionCount} shape${selectionCount === 1 ? "" : "s"} selected`;
-
   return (
-    <FluentProvider theme={webLightTheme}>
+    <FluentProvider theme={webDarkTheme}>
       <div className={styles.root}>
-
-        {/* ── Header ── */}
-        <div className={styles.header}>
-          <span className={styles.headerTitle}>Slide Toolbox</span>
-          <span className={styles.headerSel}>{selLabel}</span>
-        </div>
 
         {/* ── Toast ── */}
         <div className={styles.toastArea}>
@@ -177,6 +148,11 @@ export const App: React.FC = () => {
         <div className={styles.scrollArea}>
 
           <div className={styles.panelBody}>
+            <AiPanel showToast={showToast} />
+          </div>
+
+          <hr className={styles.sectionDivider} />
+          <div className={styles.panelBody}>
             <AlignPanel selectionCount={selectionCount} showToast={showToast} />
           </div>
 
@@ -187,7 +163,7 @@ export const App: React.FC = () => {
 
           <hr className={styles.sectionDivider} />
           <div className={styles.panelBody}>
-            <CommentPanel selectedCommentName={selectedCommentName} showToast={showToast} />
+            <CommentPanel selectedCommentName={selectedCommentName} selectedStoplightName={selectedStoplightName} showToast={showToast} />
           </div>
 
           <hr className={styles.sectionDivider} />

@@ -24,7 +24,7 @@ const useStyles = makeStyles({
   root:      { display: "flex", flexDirection: "column", gap: "4px" },
   sizeRow:   { display: "flex", gap: "4px", alignItems: "center" },
   symbolRow: { display: "flex", flexWrap: "wrap", gap: "3px" },
-  symbolBtn: { minWidth: "28px", padding: "2px 3px" },
+  symbolBtn: { minWidth: "36px" },
   divider:   { margin: "2px 0" },
   sizeLabel: { fontSize: "10px", color: tokens.colorNeutralForeground3 },
 });
@@ -50,7 +50,12 @@ export const SymbolsPanel: React.FC<SymbolsPanelProps> = ({ showToast }) => {
       <div className={styles.sizeRow}>
         <span className={styles.sizeLabel}>Size:</span>
         {SIZE_OPTIONS.map((opt) => (
-          <ToggleButton key={opt.pt} size="small" checked={sizePt === opt.pt} onClick={() => setSizePt(opt.pt)}>
+          <ToggleButton
+            key={opt.pt}
+            checked={sizePt === opt.pt}
+            appearance={sizePt === opt.pt ? "primary" : "secondary"}
+            onClick={() => setSizePt(opt.pt)}
+          >
             {opt.label}
           </ToggleButton>
         ))}
@@ -62,8 +67,7 @@ export const SymbolsPanel: React.FC<SymbolsPanelProps> = ({ showToast }) => {
           <div className={styles.symbolRow}>
             {group.symbols.map((sym) => (
               <Tooltip key={sym.id} content={sym.label} relationship="label">
-                <Button className={styles.symbolBtn} size="small"
-                  icon={<SvgIcon svg={sym.svg} size={16} />}
+                <Button className={styles.symbolBtn}                  icon={<SvgIcon svg={sym.svg} size={20} />}
                   onClick={() => handleInsert(sym)} />
               </Tooltip>
             ))}

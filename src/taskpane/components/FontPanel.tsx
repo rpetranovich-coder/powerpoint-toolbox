@@ -30,13 +30,12 @@ export const FontPanel: React.FC<FontPanelProps> = ({ showToast }) => {
     <div className={styles.root}>
       <Input
         className={styles.input}
-        size="small"
-        value={fontName}
+               value={fontName}
         placeholder="Font name"
         onChange={(_, d) => setFontName(d.value)}
         onKeyDown={(e) => { if (e.key === "Enter") handleApply(); }}
       />
-      <Button size="small" disabled={!fontName.trim()} onClick={handleApply}>
+      <Button disabled={!fontName.trim()} onClick={handleApply}>
         Apply to Slide
       </Button>
     </div>

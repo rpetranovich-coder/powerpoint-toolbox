@@ -33,11 +33,11 @@ export const FootnotePanel: React.FC<FootnotePanelProps> = ({ showToast }) => {
   return (
     <div className={styles.root}>
       <div className={styles.field}>
-        <Label size="small">Footnote</Label>
+        <Label>Footnote</Label>
         <div className={styles.row}>
-          <Input className={styles.input} size="small" placeholder="e.g. Based on 2024 data"
+          <Input className={styles.input} placeholder="e.g. Based on 2024 data"
             value={footnoteText} onChange={(_, d) => setFootnoteText(d.value)} />
-          <Button size="small" disabled={!footnoteText.trim()}
+          <Button disabled={!footnoteText.trim()}
             onClick={() => run(() => insertFootnote(footnoteText.trim()), "Footnote inserted/updated")}>
             Insert
           </Button>
@@ -47,11 +47,11 @@ export const FootnotePanel: React.FC<FootnotePanelProps> = ({ showToast }) => {
       <Divider className={styles.divider} />
 
       <div className={styles.field}>
-        <Label size="small">Source</Label>
+        <Label>Source</Label>
         <div className={styles.row}>
-          <Input className={styles.input} size="small" placeholder="e.g. McKinsey Global Institute"
+          <Input className={styles.input} placeholder="e.g. Bain Research"
             value={sourceText} onChange={(_, d) => setSourceText(d.value)} />
-          <Button size="small" disabled={!sourceText.trim()}
+          <Button disabled={!sourceText.trim()}
             onClick={() => run(() => insertSource(sourceText.trim()), "Source inserted/updated")}>
             Insert
           </Button>

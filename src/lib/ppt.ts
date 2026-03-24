@@ -34,6 +34,7 @@ export const SLIDE_HEIGHT_PT = 540;
 export interface SelectionInfo {
   count: number;
   selectedCommentName: string | null;
+  selectedStoplightName: string | null;
 }
 
 export interface StickyCommentTemplate {
@@ -50,6 +51,32 @@ export interface StickyCommentTemplate {
   fontName: string;
   defaultText: string;
 }
+
+export interface StoplightTemplate {
+  diameter: number;
+  fillColor: string;       // hex without #
+  borderColor: string;     // hex without #
+  borderWeight: number;
+  borderVisible: boolean;
+  fontSize: number;
+  fontColor: string;       // hex without #
+  fontBold: boolean;
+  fontName: string;
+  defaultText: string;     // default initials (2 letters)
+}
+
+export const DEFAULT_STOPLIGHT_TEMPLATE: StoplightTemplate = {
+  diameter: 56,
+  fillColor: "C00000",
+  borderColor: "C00000",
+  borderWeight: 0,
+  borderVisible: false,
+  fontSize: 18,
+  fontColor: "FFFFFF",
+  fontBold: true,
+  fontName: "Segoe UI",
+  defaultText: "AB",
+};
 
 export const DEFAULT_COMMENT_TEMPLATE: StickyCommentTemplate = {
   width: 220,
@@ -133,11 +160,16 @@ export async function getSelectionInfo(): Promise<SelectionInfo> {
   try {
     return await PowerPoint.run(async (context) => {
       const items = await getSelectedShapesItems(context);
-      const comment = items.find((s) => s.name?.startsWith("TBX_COMMENT_"));
-      return { count: items.length, selectedCommentName: comment?.name ?? null };
+      const comment   = items.find((s) => s.name?.startsWith("TBX_COMMENT_"));
+      const stoplight = items.find((s) => s.name === "TBX_STOPLIGHT");
+      return {
+        count: items.length,
+        selectedCommentName:   comment?.name   ?? null,
+        selectedStoplightName: stoplight?.name ?? null,
+      };
     });
   } catch {
-    return { count: 0, selectedCommentName: null };
+    return { count: 0, selectedCommentName: null, selectedStoplightName: null };
   }
 }
 
@@ -373,51 +405,145 @@ export async function readCommentTemplate(
   });
 }
 
+// ─── Stoplight ────────────────────────────────────────────────────────────────
+
+const STOPLIGHT_NAME  = "TBX_STOPLIGHT";
+const STOPLIGHT_RIGHT = 14;
+const STOPLIGHT_TOP   = 14;
+
+export async function insertStoplight(
+  template: StoplightTemplate = DEFAULT_STOPLIGHT_TEMPLATE
+): Promise<void> {
+  await PowerPoint.run(async (context) => {
+    const slide = await getActiveSlide(context);
+    slide.shapes.load("items/name");
+    await context.sync();
+
+    const existing = slide.shapes.items.find((s) => s.name === STOPLIGHT_NAME);
+
+    if (existing) {
+      existing.load("textFrame/textRange/text");
+      await context.sync();
+      existing.textFrame.textRange.text = template.defaultText;
+      await context.sync();
+      return;
+    }
+
+    const left = SLIDE_WIDTH_PT - template.diameter - STOPLIGHT_RIGHT;
+
+    const shape = slide.shapes.addGeometricShape(
+      PowerPoint.GeometricShapeType.ellipse,
+      { left, top: STOPLIGHT_TOP, width: template.diameter, height: template.diameter }
+    );
+    shape.name = STOPLIGHT_NAME;
+
+    shape.fill.setSolidColor(template.fillColor);
+    shape.lineFormat.color   = template.borderColor;
+    shape.lineFormat.weight  = template.borderWeight;
+    shape.lineFormat.visible = template.borderVisible;
+
+    const tf = shape.textFrame;
+    tf.autoSizeSetting  = PowerPoint.ShapeAutoSize.autoSizeNone;
+    tf.leftMargin       = 0;
+    tf.rightMargin      = 0;
+    tf.topMargin        = 0;
+    tf.bottomMargin     = 0;
+    tf.verticalAlignment = PowerPoint.TextVerticalAlignment.middle;
+
+    const range = tf.textRange;
+    range.text        = template.defaultText;
+    range.font.name   = template.fontName;
+    range.font.size   = template.fontSize;
+    range.font.color  = template.fontColor;
+    range.font.bold   = template.fontBold;
+    range.paragraphFormat.horizontalAlignment =
+      PowerPoint.ParagraphHorizontalAlignment.center;
+
+    await context.sync();
+  });
+}
+
+export async function readStoplightTemplate(
+  shapeName: string
+): Promise<StoplightTemplate> {
+  return await PowerPoint.run(async (context) => {
+    const slide = await getActiveSlide(context);
+
+    slide.shapes.load("items/name");
+    await context.sync();
+
+    const shape = slide.shapes.items.find((s) => s.name === shapeName);
+    if (!shape) throw new Error("Stoplight shape not found on the current slide.");
+
+    shape.load(
+      "width,fill/foregroundColor,lineFormat/color,lineFormat/weight,lineFormat/visible"
+    );
+    shape.textFrame.textRange.load(
+      "text,font/size,font/color,font/bold,font/name"
+    );
+    await context.sync();
+
+    const strip = (c: string | undefined | null): string =>
+      (c ?? "").replace(/^#/, "");
+
+    return {
+      diameter:      shape.width,
+      fillColor:     strip(shape.fill.foregroundColor)           || "C00000",
+      borderColor:   strip(shape.lineFormat.color)               || "C00000",
+      borderWeight:  shape.lineFormat.weight                     ?? 0,
+      borderVisible: shape.lineFormat.visible                    ?? false,
+      fontSize:      shape.textFrame.textRange.font.size         ?? 18,
+      fontColor:     strip(shape.textFrame.textRange.font.color) || "FFFFFF",
+      fontBold:      shape.textFrame.textRange.font.bold         ?? true,
+      fontName:      shape.textFrame.textRange.font.name         ?? "Segoe UI",
+      defaultText:   shape.textFrame.textRange.text              ?? "AB",
+    };
+  });
+}
+
 // ─── Symbol insertion ─────────────────────────────────────────────────────────
-/**
- * Insert an SVG symbol using addSvgImage().
- * REQUIREMENT: Microsoft 365 / Office 2021+ on Windows.
- * Falls back with a clear error on older versions.
- */
+
+/** Render an SVG string to a PNG base-64 string via an offscreen canvas. */
+function svgToPngBase64(svgContent: string, sizePx: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const blob = new Blob([svgContent], { type: "image/svg+xml;charset=utf-8" });
+    const url  = URL.createObjectURL(blob);
+    const img  = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width  = sizePx;
+      canvas.height = sizePx;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { URL.revokeObjectURL(url); reject(new Error("Canvas unavailable")); return; }
+      ctx.drawImage(img, 0, 0, sizePx, sizePx);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/png").split(",")[1]);
+    };
+    img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+    img.src = url;
+  });
+}
+
 export async function insertSymbol(
   svgContent: string,
   sizePt: number
 ): Promise<void> {
-  await PowerPoint.run(async (context) => {
-    const slide = await getActiveSlide(context);
+  // Convert SVG → PNG, then insert via the legacy API (works on all Office versions)
+  const sizePx    = Math.round(sizePt * (96 / 72) * 2); // 2x for sharpness
+  const base64Png = await svgToPngBase64(svgContent, sizePx);
 
-    let left = SLIDE_WIDTH_PT / 2 - sizePt / 2;
-    let top  = SLIDE_HEIGHT_PT / 2 - sizePt / 2;
-
-    try {
-      const sel = await getSelectedShapesItems(context);
-      if (sel.length > 0) {
-        const maxRight = Math.max(...sel.map((s) => s.left + s.width));
-        const minTop   = Math.min(...sel.map((s) => s.top));
-        left = Math.min(maxRight + 8, SLIDE_WIDTH_PT - sizePt - 8);
-        top  = minTop;
+  await new Promise<void>((resolve, reject) => {
+    Office.context.document.setSelectedDataAsync(
+      base64Png,
+      { coercionType: Office.CoercionType.Image },
+      (result) => {
+        if (result.status === Office.AsyncResultStatus.Failed) {
+          reject(new Error(result.error.message));
+        } else {
+          resolve();
+        }
       }
-    } catch {
-      // use center default
-    }
-
-    try {
-      // addSvgImage is available in PowerPointApi 1.6+ but not yet in @types/office-js.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (slide.shapes as any).addSvgImage(svgContent, {
-        left,
-        top,
-        width: sizePt,
-        height: sizePt,
-      });
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      throw new Error(
-        `SVG insertion failed — requires Microsoft 365 / Office 2021+. (${msg})`
-      );
-    }
-
-    await context.sync();
+    );
   });
 }
 
@@ -492,10 +618,15 @@ export async function insertSource(text: string): Promise<void> {
 // ─── Status Label ─────────────────────────────────────────────────────────────
 
 const STATUS_NAME  = "TBX_STATUS";
-const STATUS_W     = 220;
-const STATUS_H     = 22;
+const STATUS_H     = 16;
 const STATUS_RIGHT = 20;
-const STATUS_TOP   = 18;
+// Just below the tagline band — typical consulting title+tagline height is ~65pt
+const STATUS_TOP   = 72;
+// Estimate width from text so the box hugs the text tightly.
+// Plantagenet Cherokee 12pt bold: ~8pt per character is a close approximation.
+function statusWidth(text: string): number {
+  return Math.max(50, Math.round(text.length * 8 + 8));
+}
 
 export async function insertStatusLabel(text: string): Promise<void> {
   await PowerPoint.run(async (context) => {
@@ -509,31 +640,36 @@ export async function insertStatusLabel(text: string): Promise<void> {
       existing.load("textFrame/textRange/text");
       await context.sync();
       existing.textFrame.textRange.text = text;
+      // Re-fit width to new text
+      existing.width = statusWidth(text);
+      existing.left  = SLIDE_WIDTH_PT - statusWidth(text) - STATUS_RIGHT;
       await context.sync();
       return;
     }
 
-    const left = SLIDE_WIDTH_PT - STATUS_W - STATUS_RIGHT;
+    const w    = statusWidth(text);
+    const left = SLIDE_WIDTH_PT - w - STATUS_RIGHT;
 
     const shape = slide.shapes.addTextBox(text, {
       left,
       top:    STATUS_TOP,
-      width:  STATUS_W,
+      width:  w,
       height: STATUS_H,
     });
     shape.name = STATUS_NAME;
 
     const tf = shape.textFrame;
     tf.autoSizeSetting = PowerPoint.ShapeAutoSize.autoSizeShapeToFitText;
-    tf.leftMargin  = 0;
-    tf.rightMargin = 0;
+    tf.leftMargin  = 2;
+    tf.rightMargin = 2;
     tf.topMargin   = 0;
+    tf.bottomMargin = 0;
 
     shape.lineFormat.visible = false;
 
     const range = tf.textRange;
-    range.font.name  = "Segoe UI Semibold";
-    range.font.size  = 11;
+    range.font.name  = "Plantagenet Cherokee";
+    range.font.size  = 12;
     range.font.color = "808080";
     range.font.bold  = true;
 
@@ -600,39 +736,50 @@ export async function insertTable(rows: number, cols: number): Promise<void> {
 
 // ─── Column guides ────────────────────────────────────────────────────────────
 
-const GUIDE_PREFIX    = "TBX_GUIDE_COL_";
-const GUIDE_COLOR     = "BDD7EE"; // soft blue — clearly visible but non-distracting
-const GUIDE_MARGIN_PT = 40;       // standard content margin from slide edge
+const GUIDE_MARGIN_PT = 40;  // left/right content margin from slide edge
+const GUIDE_GUTTER_PT = 12;  // space between columns (gutter)
 
 /**
- * Inserts N+1 thin vertical guide lines dividing the slide into `columns` equal
- * columns within the standard 40pt content margin.  Existing guides are replaced.
- * Each guide is sent to back so it doesn't obscure content.
+ * Calculates vertical guide positions (in points from slide left) for N columns.
+ * Each column pair has: left-margin, right-of-col, left-of-next-col, ..., right-margin.
+ * Total = 2 * N guides.
  */
+function columnGuidePositions(columns: number): number[] {
+  const colWidth = (SLIDE_WIDTH_PT - 2 * GUIDE_MARGIN_PT - (columns - 1) * GUIDE_GUTTER_PT) / columns;
+  const positions: number[] = [GUIDE_MARGIN_PT];
+  for (let i = 0; i < columns - 1; i++) {
+    const colRight = GUIDE_MARGIN_PT + (i + 1) * colWidth + i * GUIDE_GUTTER_PT;
+    positions.push(colRight);
+    positions.push(colRight + GUIDE_GUTTER_PT);
+  }
+  positions.push(SLIDE_WIDTH_PT - GUIDE_MARGIN_PT);
+  return positions;
+}
+
+const GUIDE_PREFIX = "TBX_GUIDE_COL_";
+const GUIDE_COLOR  = "BDD7EE"; // soft blue, similar to PowerPoint's guide color
+
 export async function insertColumnGuides(columns: number): Promise<void> {
   await PowerPoint.run(async (context) => {
     const slide = await getActiveSlide(context);
-
-    // Clear any existing guides first
     slide.shapes.load("items/name");
     await context.sync();
+
+    // Clear existing guide shapes
     const old = slide.shapes.items.filter((s) => s.name?.startsWith(GUIDE_PREFIX));
     for (const s of old) s.delete();
     if (old.length > 0) await context.sync();
 
-    const contentWidth = SLIDE_WIDTH_PT - GUIDE_MARGIN_PT * 2;
-    const colWidth     = contentWidth / columns;
-
-    for (let i = 0; i <= columns; i++) {
-      const x     = GUIDE_MARGIN_PT + i * colWidth;
-      const guide = slide.shapes.addGeometricShape(
+    // Insert thin 1pt-wide rectangles at each guide position
+    for (const pos of columnGuidePositions(columns)) {
+      const shape = slide.shapes.addGeometricShape(
         PowerPoint.GeometricShapeType.rectangle,
-        { left: x - 0.5, top: 0, width: 1, height: SLIDE_HEIGHT_PT }
+        { left: pos - 0.5, top: 0, width: 1, height: SLIDE_HEIGHT_PT }
       );
-      guide.name = `${GUIDE_PREFIX}${i}`;
-      guide.fill.setSolidColor(GUIDE_COLOR);
-      guide.lineFormat.visible = false;
-      guide.setZOrder(PowerPoint.ShapeZOrder.sendToBack);
+      shape.name = `${GUIDE_PREFIX}${pos}`;
+      shape.fill.setSolidColor(GUIDE_COLOR);
+      shape.lineFormat.visible = false;
+      shape.setZOrder(PowerPoint.ShapeZOrder.sendToBack);
     }
 
     await context.sync();
@@ -648,6 +795,140 @@ export async function clearColumnGuides(): Promise<void> {
     const guides = slide.shapes.items.filter((s) => s.name?.startsWith(GUIDE_PREFIX));
     if (guides.length === 0) throw new Error("No column guides found on this slide.");
     for (const s of guides) s.delete();
+    await context.sync();
+  });
+}
+
+// ─── AI Tagline ───────────────────────────────────────────────────────────────
+
+export interface ShapeTextEntry { id: string; text: string; }
+
+/** Returns id + text for every text-bearing non-TBX shape on the active slide. */
+export async function getSlideShapeTexts(): Promise<ShapeTextEntry[]> {
+  return await PowerPoint.run(async (context) => {
+    const slide = await getActiveSlide(context);
+    slide.shapes.load("items/type,items/name,items/id");
+    await context.sync();
+
+    const candidates = slide.shapes.items.filter((shape) => {
+      if (
+        shape.type === PowerPoint.ShapeType.image ||
+        shape.type === PowerPoint.ShapeType.line
+      ) return false;
+      if (shape.name?.startsWith("TBX_")) return false;
+      return true;
+    });
+
+    const results: ShapeTextEntry[] = [];
+    for (const shape of candidates) {
+      try {
+        shape.textFrame.textRange.load("text");
+        await context.sync();
+        const text = shape.textFrame.textRange.text?.trim();
+        if (text) results.push({ id: shape.id, text });
+      } catch { /* no text frame — skip */ }
+    }
+    return results;
+  });
+}
+
+/** Writes rewritten text back to shapes matched by id. */
+export async function updateShapeTexts(updates: ShapeTextEntry[]): Promise<void> {
+  await PowerPoint.run(async (context) => {
+    const slide = await getActiveSlide(context);
+    slide.shapes.load("items/id");
+    await context.sync();
+
+    for (const update of updates) {
+      const shape = slide.shapes.items.find((s) => s.id === update.id);
+      if (!shape) continue;
+      try {
+        shape.textFrame.textRange.text = update.text;
+      } catch { /* skip */ }
+    }
+    await context.sync();
+  });
+}
+
+/** Collect all visible text from the active slide (skips guide shapes / images). */
+export async function getSlideTextContent(): Promise<string> {
+  return await PowerPoint.run(async (context) => {
+    const slide = await getActiveSlide(context);
+
+    // Pass 1: load only type + name so we can filter safely
+    slide.shapes.load("items/type,items/name");
+    await context.sync();
+
+    const candidates = slide.shapes.items.filter((shape) => {
+      if (
+        shape.type === PowerPoint.ShapeType.image ||
+        shape.type === PowerPoint.ShapeType.line
+      ) return false;
+      if (shape.name?.startsWith("TBX_")) return false;
+      return true;
+    });
+
+    // Pass 2: load each shape's text individually so one bad shape can't fail the batch
+    const texts: string[] = [];
+    for (const shape of candidates) {
+      try {
+        shape.textFrame.textRange.load("text");
+        await context.sync();
+        const text = shape.textFrame.textRange.text?.trim();
+        if (text) texts.push(text);
+      } catch { /* shape has no accessible text frame — skip */ }
+    }
+    return texts.join("\n");
+  });
+}
+
+const ACTION_TITLE_NAME   = "TBX_ACTION_TITLE";
+const ACTION_TITLE_TOP    = 20;
+const ACTION_TITLE_HEIGHT = 44;
+
+/** Insert (or update) a bold action-title text box at the top of the active slide. */
+export async function insertActionTitle(text: string): Promise<void> {
+  await PowerPoint.run(async (context) => {
+    const slide = await getActiveSlide(context);
+    slide.shapes.load("items/name");
+    await context.sync();
+
+    const existing = slide.shapes.items.find((s) => s.name === ACTION_TITLE_NAME);
+
+    if (existing) {
+      existing.load("textFrame/textRange/text");
+      await context.sync();
+      existing.textFrame.textRange.text = text;
+      await context.sync();
+      return;
+    }
+
+    const left  = GUIDE_MARGIN_PT;
+    const width = SLIDE_WIDTH_PT - 2 * GUIDE_MARGIN_PT;
+
+    const shape = slide.shapes.addTextBox(text, {
+      left,
+      top:    ACTION_TITLE_TOP,
+      width,
+      height: ACTION_TITLE_HEIGHT,
+    });
+    shape.name = ACTION_TITLE_NAME;
+
+    const tf = shape.textFrame;
+    tf.autoSizeSetting = PowerPoint.ShapeAutoSize.autoSizeShapeToFitText;
+    tf.leftMargin   = 0;
+    tf.rightMargin  = 0;
+    tf.topMargin    = 0;
+    tf.bottomMargin = 0;
+
+    shape.lineFormat.visible = false;
+
+    const range = tf.textRange;
+    range.font.name  = "Segoe UI";
+    range.font.size  = 20;
+    range.font.color = "1F2937";
+    range.font.bold  = true;
+
     await context.sync();
   });
 }
