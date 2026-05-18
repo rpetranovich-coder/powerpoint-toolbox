@@ -23,6 +23,7 @@ import {
   computeMatchHeight,
   computeEqualizeSize,
 } from "./geometry";
+import { stepFontSize } from "./fontSizes";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,7 @@ export interface SelectionInfo {
   count: number;
   selectedCommentName: string | null;
   selectedStoplightName: string | null;
+  selectedBulletsName: string | null;
 }
 
 export interface StickyCommentTemplate {
@@ -162,14 +164,21 @@ export async function getSelectionInfo(): Promise<SelectionInfo> {
       const items = await getSelectedShapesItems(context);
       const comment   = items.find((s) => s.name?.startsWith("TBX_COMMENT_"));
       const stoplight = items.find((s) => s.name === "TBX_STOPLIGHT");
+      const bullets   = items.find((s) => s.name?.startsWith("TBX_BULLETS_"));
       return {
         count: items.length,
         selectedCommentName:   comment?.name   ?? null,
         selectedStoplightName: stoplight?.name ?? null,
+        selectedBulletsName:   bullets?.name   ?? null,
       };
     });
   } catch {
-    return { count: 0, selectedCommentName: null, selectedStoplightName: null };
+    return {
+      count: 0,
+      selectedCommentName: null,
+      selectedStoplightName: null,
+      selectedBulletsName: null,
+    };
   }
 }
 
@@ -928,6 +937,181 @@ export async function insertActionTitle(text: string): Promise<void> {
     range.font.size  = 20;
     range.font.color = "1F2937";
     range.font.bold  = true;
+
+    await context.sync();
+  });
+}
+
+// ─── Bullets box ──────────────────────────────────────────────────────────────
+
+export interface BulletsSpacing { before: number; after: number; }
+
+const BULLETS_NAME_PREFIX = "TBX_BULLETS_";
+const BULLETS_LEFT_MARGIN   = 40;
+const BULLETS_WIDTH         = SLIDE_WIDTH_PT - 2 * BULLETS_LEFT_MARGIN;
+const BULLETS_STARTER_HEIGHT = 130;
+const BULLETS_DEFAULT_TEXT =
+  "First bullet point\nSecond bullet point\nSub-bullet\nSub-bullet\nThird bullet point";
+// Indent level per paragraph in the default content (0 = L1, 1 = L2).
+const BULLETS_DEFAULT_LEVELS: ReadonlyArray<0 | 1> = [0, 0, 1, 1, 0];
+
+/**
+ * textRange.paragraphs exists at runtime (PowerPointApi 1.5+) but is missing
+ * from @types/office-js. Local shim so we can type our loops properly.
+ */
+interface BulletParagraph {
+  paragraphFormat: {
+    indentLevel: number;
+    spaceBefore: number;
+    spaceAfter: number;
+  };
+  font: { size: number };
+}
+interface BulletParagraphCollection {
+  items: BulletParagraph[];
+  load(props: string): void;
+}
+function paragraphsOf(range: PowerPoint.TextRange): BulletParagraphCollection {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (range as any).paragraphs as BulletParagraphCollection;
+}
+
+/**
+ * Insert a new slide-width bullets text box with 3 L1 + 2 nested L2 bullets.
+ * L1 paragraphs use l1Size; L2 paragraphs are stepped −2 notches.
+ * Spacing is applied uniformly to every paragraph.
+ */
+export async function insertBulletsBox(
+  l1Size = 16,
+  spacing: BulletsSpacing = { before: 6, after: 6 }
+): Promise<void> {
+  await PowerPoint.run(async (context) => {
+    const slide = await getActiveSlide(context);
+
+    const l2Size = stepFontSize(l1Size, -2);
+    const top    = Math.max(0, (SLIDE_HEIGHT_PT - BULLETS_STARTER_HEIGHT) / 2);
+
+    const shape = slide.shapes.addTextBox(BULLETS_DEFAULT_TEXT, {
+      left:   BULLETS_LEFT_MARGIN,
+      top,
+      width:  BULLETS_WIDTH,
+      height: BULLETS_STARTER_HEIGHT,
+    });
+    shape.name = `${BULLETS_NAME_PREFIX}${Date.now()}`;
+
+    shape.lineFormat.visible = false;
+
+    const tf = shape.textFrame;
+    tf.autoSizeSetting = PowerPoint.ShapeAutoSize.autoSizeShapeToFitText;
+    tf.leftMargin   = 8;
+    tf.rightMargin  = 8;
+    tf.topMargin    = 4;
+    tf.bottomMargin = 4;
+
+    const range = tf.textRange;
+    range.font.name = "Segoe UI";
+
+    const paragraphs = paragraphsOf(range);
+    paragraphs.load("items");
+    await context.sync();
+
+    paragraphs.items.forEach((p, i) => {
+      const level = BULLETS_DEFAULT_LEVELS[i] ?? 0;
+      p.paragraphFormat.indentLevel = level;
+      p.paragraphFormat.spaceBefore = spacing.before;
+      p.paragraphFormat.spaceAfter  = spacing.after;
+      p.font.size = level === 0 ? l1Size : l2Size;
+    });
+
+    await context.sync();
+  });
+}
+
+/** Find a TBX_BULLETS_* shape by name on the active slide. */
+async function findBulletsShape(
+  context: PowerPoint.RequestContext,
+  shapeName: string
+): Promise<PowerPoint.Shape> {
+  const slide = await getActiveSlide(context);
+  slide.shapes.load("items/name");
+  await context.sync();
+  const shape = slide.shapes.items.find((s) => s.name === shapeName);
+  if (!shape) throw new Error("Bullets box not found on the current slide.");
+  return shape;
+}
+
+/**
+ * Re-set font sizes on the named bullets box. L1 paragraphs (indentLevel === 0)
+ * get l1Size; everything indented further gets stepFontSize(l1Size, -2).
+ */
+export async function resizeBulletsBox(
+  shapeName: string,
+  l1Size: number
+): Promise<void> {
+  await PowerPoint.run(async (context) => {
+    const shape = await findBulletsShape(context, shapeName);
+    const subSize = stepFontSize(l1Size, -2);
+
+    const paragraphs = paragraphsOf(shape.textFrame.textRange);
+    paragraphs.load("items/paragraphFormat/indentLevel");
+    await context.sync();
+
+    for (const p of paragraphs.items) {
+      const isL1 = (p.paragraphFormat.indentLevel ?? 0) === 0;
+      p.font.size = isL1 ? l1Size : subSize;
+    }
+
+    await context.sync();
+  });
+}
+
+/**
+ * Read the first L1 (indentLevel === 0) paragraph's font size from the named
+ * bullets box, then re-apply L2 = L1 − 2 notches to every sub-paragraph.
+ * Use when the user resized L1 via the PowerPoint ribbon directly.
+ */
+export async function syncSubBullets(shapeName: string): Promise<void> {
+  await PowerPoint.run(async (context) => {
+    const shape = await findBulletsShape(context, shapeName);
+
+    const paragraphs = paragraphsOf(shape.textFrame.textRange);
+    paragraphs.load("items/paragraphFormat/indentLevel,items/font/size");
+    await context.sync();
+
+    const l1 = paragraphs.items.find(
+      (p) => (p.paragraphFormat.indentLevel ?? 0) === 0
+    );
+    if (!l1) throw new Error("No primary bullet found to sync from.");
+    const l1Size = l1.font.size;
+    if (!l1Size || l1Size <= 0)
+      throw new Error("Could not read primary bullet font size.");
+
+    const subSize = stepFontSize(l1Size, -2);
+    for (const p of paragraphs.items) {
+      if ((p.paragraphFormat.indentLevel ?? 0) > 0) p.font.size = subSize;
+    }
+
+    await context.sync();
+  });
+}
+
+/** Apply uniform paragraph spacing to every paragraph in the named bullets box. */
+export async function setBulletsSpacing(
+  shapeName: string,
+  before: number,
+  after: number
+): Promise<void> {
+  await PowerPoint.run(async (context) => {
+    const shape = await findBulletsShape(context, shapeName);
+
+    const paragraphs = paragraphsOf(shape.textFrame.textRange);
+    paragraphs.load("items");
+    await context.sync();
+
+    for (const p of paragraphs.items) {
+      p.paragraphFormat.spaceBefore = before;
+      p.paragraphFormat.spaceAfter  = after;
+    }
 
     await context.sync();
   });

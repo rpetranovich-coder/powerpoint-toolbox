@@ -14,6 +14,7 @@ import { FootnotePanel } from "./components/FootnotePanel";
 import { StatusPanel } from "./components/StatusPanel";
 import { FontPanel } from "./components/FontPanel";
 import { TablePanel } from "./components/TablePanel";
+import { BulletsPanel } from "./components/BulletsPanel";
 import { GuidesPanel } from "./components/GuidesPanel";
 import { AiPanel } from "./components/AiPanel";
 import { getSelectionInfo } from "../lib/ppt";
@@ -67,6 +68,7 @@ export const App: React.FC = () => {
   const [selectionCount, setSelectionCount] = useState(0);
   const [selectedCommentName, setSelectedCommentName] = useState<string | null>(null);
   const [selectedStoplightName, setSelectedStoplightName] = useState<string | null>(null);
+  const [selectedBulletsName, setSelectedBulletsName] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const toastIdRef = useRef(0);
 
@@ -89,10 +91,12 @@ export const App: React.FC = () => {
         setSelectionCount(info.count);
         setSelectedCommentName(info.selectedCommentName);
         setSelectedStoplightName(info.selectedStoplightName);
+        setSelectedBulletsName(info.selectedBulletsName);
       } catch {
         setSelectionCount(0);
         setSelectedCommentName(null);
         setSelectedStoplightName(null);
+        setSelectedBulletsName(null);
       }
     };
 
@@ -174,6 +178,11 @@ export const App: React.FC = () => {
           <hr className={styles.sectionDivider} />
           <div className={styles.panelBody}>
             <TablePanel showToast={showToast} />
+          </div>
+
+          <hr className={styles.sectionDivider} />
+          <div className={styles.panelBody}>
+            <BulletsPanel selectedBulletsName={selectedBulletsName} showToast={showToast} />
           </div>
 
           <hr className={styles.sectionDivider} />
