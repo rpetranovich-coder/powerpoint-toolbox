@@ -956,24 +956,40 @@ const BULLETS_DEFAULT_TEXT =
 const BULLETS_DEFAULT_LEVELS: ReadonlyArray<0 | 1> = [0, 0, 1, 1, 0];
 
 /**
- * textRange.paragraphs exists at runtime (PowerPointApi 1.5+) but is missing
- * from @types/office-js. Local shim so we can type our loops properly.
+ * PowerPoint's TextRange has no .paragraphs collection (that exists in Word
+ * only). Per-paragraph access is done via textRange.getSubstring(start, length).
+ * This helper splits text on \n and returns a substring TextRange for each
+ * non-empty paragraph, plus its original line index.
  */
-interface BulletParagraph {
-  paragraphFormat: {
-    indentLevel: number;
-    spaceBefore: number;
-    spaceAfter: number;
-  };
-  font: { size: number };
-}
-interface BulletParagraphCollection {
-  items: BulletParagraph[];
+interface ParagraphSlice { sub: PowerPoint.TextRange; lineIndex: number; }
+
+/**
+ * paragraphFormat.spaceBefore / spaceAfter exist at runtime (PowerPointApi 1.4+)
+ * but are missing from @types/office-js. Cast through this helper.
+ */
+function pfmt(sub: PowerPoint.TextRange): {
+  indentLevel: number;
+  spaceBefore: number;
+  spaceAfter: number;
   load(props: string): void;
-}
-function paragraphsOf(range: PowerPoint.TextRange): BulletParagraphCollection {
+} {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (range as any).paragraphs as BulletParagraphCollection;
+  return sub.paragraphFormat as any;
+}
+
+function paragraphSubstrings(
+  range: PowerPoint.TextRange,
+  text: string
+): ParagraphSlice[] {
+  const out: ParagraphSlice[] = [];
+  let pos = 0;
+  text.split("\n").forEach((line, lineIndex) => {
+    if (line.length > 0) {
+      out.push({ sub: range.getSubstring(pos, line.length), lineIndex });
+    }
+    pos += line.length + 1; // +1 for the \n
+  });
+  return out;
 }
 
 /**
@@ -1011,17 +1027,14 @@ export async function insertBulletsBox(
     const range = tf.textRange;
     range.font.name = "Segoe UI";
 
-    const paragraphs = paragraphsOf(range);
-    paragraphs.load("items");
-    await context.sync();
-
-    paragraphs.items.forEach((p, i) => {
-      const level = BULLETS_DEFAULT_LEVELS[i] ?? 0;
-      p.paragraphFormat.indentLevel = level;
-      p.paragraphFormat.spaceBefore = spacing.before;
-      p.paragraphFormat.spaceAfter  = spacing.after;
-      p.font.size = level === 0 ? l1Size : l2Size;
-    });
+    for (const { sub, lineIndex } of paragraphSubstrings(range, BULLETS_DEFAULT_TEXT)) {
+      const level = BULLETS_DEFAULT_LEVELS[lineIndex] ?? 0;
+      const pf = pfmt(sub);
+      pf.indentLevel = level;
+      pf.spaceBefore = spacing.before;
+      pf.spaceAfter  = spacing.after;
+      sub.font.size = level === 0 ? l1Size : l2Size;
+    }
 
     await context.sync();
   });
@@ -1052,13 +1065,17 @@ export async function resizeBulletsBox(
     const shape = await findBulletsShape(context, shapeName);
     const subSize = stepFontSize(l1Size, -2);
 
-    const paragraphs = paragraphsOf(shape.textFrame.textRange);
-    paragraphs.load("items/paragraphFormat/indentLevel");
+    const range = shape.textFrame.textRange;
+    range.load("text");
     await context.sync();
 
-    for (const p of paragraphs.items) {
-      const isL1 = (p.paragraphFormat.indentLevel ?? 0) === 0;
-      p.font.size = isL1 ? l1Size : subSize;
+    const slices = paragraphSubstrings(range, range.text ?? "");
+    for (const { sub } of slices) pfmt(sub).load("indentLevel");
+    await context.sync();
+
+    for (const { sub } of slices) {
+      const isL1 = (pfmt(sub).indentLevel ?? 0) === 0;
+      sub.font.size = isL1 ? l1Size : subSize;
     }
 
     await context.sync();
@@ -1074,21 +1091,28 @@ export async function syncSubBullets(shapeName: string): Promise<void> {
   await PowerPoint.run(async (context) => {
     const shape = await findBulletsShape(context, shapeName);
 
-    const paragraphs = paragraphsOf(shape.textFrame.textRange);
-    paragraphs.load("items/paragraphFormat/indentLevel,items/font/size");
+    const range = shape.textFrame.textRange;
+    range.load("text");
     await context.sync();
 
-    const l1 = paragraphs.items.find(
-      (p) => (p.paragraphFormat.indentLevel ?? 0) === 0
+    const slices = paragraphSubstrings(range, range.text ?? "");
+    for (const { sub } of slices) {
+      pfmt(sub).load("indentLevel");
+      sub.font.load("size");
+    }
+    await context.sync();
+
+    const l1 = slices.find(
+      ({ sub }) => (pfmt(sub).indentLevel ?? 0) === 0
     );
     if (!l1) throw new Error("No primary bullet found to sync from.");
-    const l1Size = l1.font.size;
+    const l1Size = l1.sub.font.size;
     if (!l1Size || l1Size <= 0)
       throw new Error("Could not read primary bullet font size.");
 
     const subSize = stepFontSize(l1Size, -2);
-    for (const p of paragraphs.items) {
-      if ((p.paragraphFormat.indentLevel ?? 0) > 0) p.font.size = subSize;
+    for (const { sub } of slices) {
+      if ((pfmt(sub).indentLevel ?? 0) > 0) sub.font.size = subSize;
     }
 
     await context.sync();
@@ -1104,13 +1128,14 @@ export async function setBulletsSpacing(
   await PowerPoint.run(async (context) => {
     const shape = await findBulletsShape(context, shapeName);
 
-    const paragraphs = paragraphsOf(shape.textFrame.textRange);
-    paragraphs.load("items");
+    const range = shape.textFrame.textRange;
+    range.load("text");
     await context.sync();
 
-    for (const p of paragraphs.items) {
-      p.paragraphFormat.spaceBefore = before;
-      p.paragraphFormat.spaceAfter  = after;
+    for (const { sub } of paragraphSubstrings(range, range.text ?? "")) {
+      const pf = pfmt(sub);
+      pf.spaceBefore = before;
+      pf.spaceAfter  = after;
     }
 
     await context.sync();
