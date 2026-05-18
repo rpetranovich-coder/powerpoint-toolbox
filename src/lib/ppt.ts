@@ -950,10 +950,22 @@ const BULLETS_NAME_PREFIX = "TBX_BULLETS_";
 const BULLETS_LEFT_MARGIN   = 40;
 const BULLETS_WIDTH         = SLIDE_WIDTH_PT - 2 * BULLETS_LEFT_MARGIN;
 const BULLETS_STARTER_HEIGHT = 130;
+// Literal Unicode bullet glyphs are used (not paragraphFormat.indentLevel)
+// because indentLevel only renders a glyph if the slide master defines one,
+// and many templates don't. Unicode glyphs always show.
+const BULLETS_L1_PREFIX = "• ";        // "• "
+const BULLETS_L2_PREFIX = "    ◦ ";    // "    ◦ "  (4 spaces for visual nesting)
 const BULLETS_DEFAULT_TEXT =
-  "First bullet point\nSecond bullet point\nSub-bullet\nSub-bullet\nThird bullet point";
-// Indent level per paragraph in the default content (0 = L1, 1 = L2).
-const BULLETS_DEFAULT_LEVELS: ReadonlyArray<0 | 1> = [0, 0, 1, 1, 0];
+  BULLETS_L1_PREFIX + "First bullet point\n" +
+  BULLETS_L1_PREFIX + "Second bullet point\n" +
+  BULLETS_L2_PREFIX + "Sub-bullet\n" +
+  BULLETS_L2_PREFIX + "Sub-bullet\n" +
+  BULLETS_L1_PREFIX + "Third bullet point";
+
+/** Returns 1 for L2 (starts with ◦), 0 otherwise. */
+function bulletLevelOf(lineText: string): 0 | 1 {
+  return lineText.trimStart().startsWith("◦") ? 1 : 0;
+}
 
 /**
  * PowerPoint's TextRange has no .paragraphs collection (that exists in Word
@@ -961,17 +973,15 @@ const BULLETS_DEFAULT_LEVELS: ReadonlyArray<0 | 1> = [0, 0, 1, 1, 0];
  * This helper splits text on \n and returns a substring TextRange for each
  * non-empty paragraph, plus its original line index.
  */
-interface ParagraphSlice { sub: PowerPoint.TextRange; lineIndex: number; }
+interface ParagraphSlice { sub: PowerPoint.TextRange; lineIndex: number; text: string; }
 
 /**
  * paragraphFormat.spaceBefore / spaceAfter exist at runtime (PowerPointApi 1.4+)
  * but are missing from @types/office-js. Cast through this helper.
  */
 function pfmt(sub: PowerPoint.TextRange): {
-  indentLevel: number;
   spaceBefore: number;
   spaceAfter: number;
-  load(props: string): void;
 } {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return sub.paragraphFormat as any;
@@ -985,7 +995,7 @@ function paragraphSubstrings(
   let pos = 0;
   text.split("\n").forEach((line, lineIndex) => {
     if (line.length > 0) {
-      out.push({ sub: range.getSubstring(pos, line.length), lineIndex });
+      out.push({ sub: range.getSubstring(pos, line.length), lineIndex, text: line });
     }
     pos += line.length + 1; // +1 for the \n
   });
@@ -1027,10 +1037,9 @@ export async function insertBulletsBox(
     const range = tf.textRange;
     range.font.name = "Segoe UI";
 
-    for (const { sub, lineIndex } of paragraphSubstrings(range, BULLETS_DEFAULT_TEXT)) {
-      const level = BULLETS_DEFAULT_LEVELS[lineIndex] ?? 0;
+    for (const { sub, text } of paragraphSubstrings(range, BULLETS_DEFAULT_TEXT)) {
+      const level = bulletLevelOf(text);
       const pf = pfmt(sub);
-      pf.indentLevel = level;
       pf.spaceBefore = spacing.before;
       pf.spaceAfter  = spacing.after;
       sub.font.size = level === 0 ? l1Size : l2Size;
@@ -1069,13 +1078,8 @@ export async function resizeBulletsBox(
     range.load("text");
     await context.sync();
 
-    const slices = paragraphSubstrings(range, range.text ?? "");
-    for (const { sub } of slices) pfmt(sub).load("indentLevel");
-    await context.sync();
-
-    for (const { sub } of slices) {
-      const isL1 = (pfmt(sub).indentLevel ?? 0) === 0;
-      sub.font.size = isL1 ? l1Size : subSize;
+    for (const { sub, text } of paragraphSubstrings(range, range.text ?? "")) {
+      sub.font.size = bulletLevelOf(text) === 0 ? l1Size : subSize;
     }
 
     await context.sync();
@@ -1096,23 +1100,18 @@ export async function syncSubBullets(shapeName: string): Promise<void> {
     await context.sync();
 
     const slices = paragraphSubstrings(range, range.text ?? "");
-    for (const { sub } of slices) {
-      pfmt(sub).load("indentLevel");
-      sub.font.load("size");
-    }
+    for (const { sub } of slices) sub.font.load("size");
     await context.sync();
 
-    const l1 = slices.find(
-      ({ sub }) => (pfmt(sub).indentLevel ?? 0) === 0
-    );
-    if (!l1) throw new Error("No primary bullet found to sync from.");
+    const l1 = slices.find(({ text }) => bulletLevelOf(text) === 0);
+    if (!l1) throw new Error("No primary bullet (• prefix) found to sync from.");
     const l1Size = l1.sub.font.size;
     if (!l1Size || l1Size <= 0)
       throw new Error("Could not read primary bullet font size.");
 
     const subSize = stepFontSize(l1Size, -2);
-    for (const { sub } of slices) {
-      if ((pfmt(sub).indentLevel ?? 0) > 0) sub.font.size = subSize;
+    for (const { sub, text } of slices) {
+      if (bulletLevelOf(text) === 1) sub.font.size = subSize;
     }
 
     await context.sync();
