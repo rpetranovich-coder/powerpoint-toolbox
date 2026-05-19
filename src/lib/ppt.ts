@@ -956,11 +956,8 @@ const BULLETS_STARTER_HEIGHT = 130;
 const BULLETS_L1_PREFIX = "• ";        // "• "
 const BULLETS_L2_PREFIX = "    ◦ ";    // "    ◦ "  (4 spaces for visual nesting)
 const BULLETS_DEFAULT_TEXT =
-  BULLETS_L1_PREFIX + "First bullet point\n" +
-  BULLETS_L1_PREFIX + "Second bullet point\n" +
-  BULLETS_L2_PREFIX + "Sub-bullet\n" +
-  BULLETS_L2_PREFIX + "Sub-bullet\n" +
-  BULLETS_L1_PREFIX + "Third bullet point";
+  BULLETS_L1_PREFIX + "...\n" +
+  BULLETS_L2_PREFIX + "...";
 
 /** Returns 1 for L2 (starts with ◦), 0 otherwise. */
 function bulletLevelOf(lineText: string): 0 | 1 {
@@ -1035,7 +1032,7 @@ export async function insertBulletsBox(
     tf.bottomMargin = 4;
 
     const range = tf.textRange;
-    range.font.name = "Segoe UI";
+    range.font.name = "Aptos";
 
     for (const { sub, text } of paragraphSubstrings(range, BULLETS_DEFAULT_TEXT)) {
       const level = bulletLevelOf(text);
