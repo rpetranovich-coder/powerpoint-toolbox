@@ -5,46 +5,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run dev-server         # Start HTTPS dev server on https://localhost:3000
+npm run deploy             # ⭐ Build + publish to gh-pages (THIS is how changes go live in PowerPoint)
+npm run build              # Production build → dist/
+npm run build:dev          # Dev build → dist/
+npm run dev-server         # HTTPS dev server on https://localhost:3000 (NOT used by this project's manifest — see below)
 npm run start              # Sideload + open in PowerPoint (web/desktop auto-detect)
 npm run start:desktop      # Force sideload into desktop PowerPoint
 npm run stop               # Stop sideloaded add-in
-npm run build              # Production build → dist/
-npm run build:dev          # Dev build → dist/
 npm run validate           # Validate manifest.xml schema
 npm run lint               # ESLint .ts / .tsx
 npm run lint:fix           # Auto-fix lint issues
-npm run deploy             # build + push dist/ to gh-pages branch (GitHub Pages)
 ```
 
-## Deployment model (IMPORTANT)
+## How updates get into PowerPoint (READ THIS BEFORE TELLING THE USER HOW TO TEST)
 
-This add-in is **hosted on GitHub Pages**, not on localhost. The installed
-`manifest.xml` points PowerPoint at remote URLs under
-`https://rpetranovich-coder.github.io/powerpoint-toolbox/` (taskpane.html,
-commands.html, assets). `localhost:3000` is used **only** for local dev via
-`npm run dev-server`; it is not what the sideloaded add-in normally loads.
+**This project's `manifest.xml` points all resource URLs at `https://rpetranovich-coder.github.io/powerpoint-toolbox/` (GitHub Pages), NOT at `localhost:3000`.** The PowerPoint add-in always loads the bundle from GitHub Pages, regardless of whether a dev server is running. `localhost:3000` is used **only** for local dev via `npm run dev-server`; it is not what the sideloaded add-in normally loads.
 
-### How a change reaches PowerPoint
-
+The normal workflow to see code changes in PowerPoint:
 1. Edit files under `src/**`.
-2. `npm run deploy` → runs `npm run build` (webpack → `dist/`) then `gh-pages -d dist`
-   (pushes `dist/` to the `gh-pages` branch). GitHub Pages serves it within ~1 min.
-3. In PowerPoint, **close and reopen the task pane** (or restart PowerPoint) to fetch
-   the new files. No re-sideload is needed for code changes because the manifest
-   references remote URLs.
+2. `npm run deploy` — runs `npm run build` (webpack → `dist/`) then `gh-pages -d dist` (pushes `dist/` to the `gh-pages` branch). GitHub Pages serves it within ~1 min.
+3. In PowerPoint: close the toolbox task pane and reopen it (Home → Open Toolbox). The new bundle loads. No re-sideload is needed for code changes because the manifest references remote URLs.
+
+**Do NOT default to suggesting `npm run dev-server` + `npm run start:desktop`** — that workflow requires a localhost-pointing manifest, which this project does not have. If the user ever wants live-reload dev iteration, they would need a separate localhost-pointing dev manifest. Don't propose this unless asked.
 
 ### When a re-sideload IS required
 
-- Only changes to `manifest.xml` itself (ribbon buttons, permissions, IDs, URLs,
-  task-pane names) require re-uploading the manifest in PowerPoint. Code/asset
-  changes served from GitHub Pages do not.
+- Only changes to `manifest.xml` itself (ribbon buttons, permissions, IDs, URLs, task-pane names) require re-uploading the manifest in PowerPoint. Code/asset changes served from GitHub Pages do not.
 
 ### Caching
 
-- PowerPoint's webview caches `taskpane.html`/JS. If a change doesn't appear after
-  reopening, clear the Office cache at `%LOCALAPPDATA%\Microsoft\Office\16.0\Wef\`
-  or fully restart PowerPoint.
+- PowerPoint's webview caches `taskpane.html`/JS. If a change doesn't appear after reopening, clear the Office cache at `%LOCALAPPDATA%\Microsoft\Office\16.0\Wef\` or fully restart PowerPoint.
 
 ## Architecture
 
@@ -75,8 +65,9 @@ Entry: `src/taskpane/index.tsx` → mounts React inside `Office.onReady()`.
 | Shape | Name pattern |
 |---|---|
 | Sticky comment | `TBX_COMMENT_<timestamp>` |
+| Bullets box | `TBX_BULLETS_<timestamp>` |
 | Footnote | `TBX_FOOTNOTE` |
 | Source | `TBX_SOURCE` |
 | Status label | `TBX_STATUS` |
 
-Footnote/Source/Status are upserted: if a shape with that name exists on the current slide, its text is updated instead of creating a duplicate.
+Footnote/Source/Status are upserted: if a shape with that name exists on the current slide, its text is updated instead of creating a duplicate. Comment and Bullets shapes use unique timestamped names so multiple can coexist per slide.
