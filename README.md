@@ -66,13 +66,41 @@ Accept it (or run `npx office-addin-dev-certs install` manually first).
 
 ---
 
-## Build for production
+## Build & deploy (production)
+
+This add-in is **hosted on GitHub Pages**. The `manifest.xml` already points at the
+live URLs under `https://rpetranovich-coder.github.io/powerpoint-toolbox/` — you do
+**not** need to edit URLs in the manifest for normal use.
 
 ```bash
-npm run build          # outputs to /dist
+npm run build          # webpack production build → /dist
+npm run deploy         # build + push /dist to the gh-pages branch
 ```
 
-Replace all `https://localhost:3000` references in `manifest.xml` with your hosted URL before deploying.
+`npm run deploy` runs `npm run build && gh-pages -d dist`, which publishes the
+contents of `dist/` to the `gh-pages` branch. GitHub Pages serves the update within
+about a minute.
+
+### How an update reaches PowerPoint
+
+1. Edit source under `src/**`.
+2. Run `npm run deploy`.
+3. In PowerPoint, **close and reopen the task pane** (or restart PowerPoint) to load
+   the new files.
+
+Because the manifest references remote GitHub Pages URLs, **code and asset changes do
+not require re-sideloading**. Only changes to `manifest.xml` itself (ribbon buttons,
+permissions, IDs, URLs, task-pane names) require re-uploading the manifest.
+
+> **Local development** uses `npm run dev-server` on `https://localhost:3000` with a
+> locally-modified manifest pointing at localhost. That is separate from the hosted
+> production add-in described above.
+
+### Caching
+
+PowerPoint's webview caches `taskpane.html`/JS. If a change doesn't appear after
+reopening, clear the Office cache at `%LOCALAPPDATA%\Microsoft\Office\16.0\Wef\` or
+fully restart PowerPoint.
 
 ---
 
@@ -109,7 +137,7 @@ Replace all `https://localhost:3000` references in `manifest.xml` with your host
 
 ```
 powerpoint-toolbox/
-├── manifest.xml                  # Add-in manifest (IDs, ribbon entry, URLs)
+├── manifest.xml                  # Add-in manifest (IDs, ribbon entry, GitHub Pages URLs)
 ├── webpack.config.js             # Dev server + bundler
 ├── src/
 │   ├── lib/
@@ -123,12 +151,17 @@ powerpoint-toolbox/
 │   │   ├── taskpane.css          # Global resets
 │   │   └── components/
 │   │       ├── Toast.tsx
+│   │       ├── AiPanel.tsx
 │   │       ├── AlignPanel.tsx
-│   │       ├── GroupPanel.tsx
 │   │       ├── CommentPanel.tsx
-│   │       ├── SymbolsPanel.tsx
+│   │       ├── FontPanel.tsx
 │   │       ├── FootnotePanel.tsx
-│   │       └── StatusPanel.tsx
+│   │       ├── GroupPanel.tsx
+│   │       ├── GuidesPanel.tsx
+│   │       ├── InsertPanel.tsx
+│   │       ├── StatusPanel.tsx
+│   │       ├── SymbolsPanel.tsx
+│   │       └── TablePanel.tsx
 │   └── commands/
 │       ├── commands.html
 │       └── commands.ts           # Placeholder for future ribbon commands

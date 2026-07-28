@@ -14,7 +14,37 @@ npm run build:dev          # Dev build → dist/
 npm run validate           # Validate manifest.xml schema
 npm run lint               # ESLint .ts / .tsx
 npm run lint:fix           # Auto-fix lint issues
+npm run deploy             # build + push dist/ to gh-pages branch (GitHub Pages)
 ```
+
+## Deployment model (IMPORTANT)
+
+This add-in is **hosted on GitHub Pages**, not on localhost. The installed
+`manifest.xml` points PowerPoint at remote URLs under
+`https://rpetranovich-coder.github.io/powerpoint-toolbox/` (taskpane.html,
+commands.html, assets). `localhost:3000` is used **only** for local dev via
+`npm run dev-server`; it is not what the sideloaded add-in normally loads.
+
+### How a change reaches PowerPoint
+
+1. Edit files under `src/**`.
+2. `npm run deploy` → runs `npm run build` (webpack → `dist/`) then `gh-pages -d dist`
+   (pushes `dist/` to the `gh-pages` branch). GitHub Pages serves it within ~1 min.
+3. In PowerPoint, **close and reopen the task pane** (or restart PowerPoint) to fetch
+   the new files. No re-sideload is needed for code changes because the manifest
+   references remote URLs.
+
+### When a re-sideload IS required
+
+- Only changes to `manifest.xml` itself (ribbon buttons, permissions, IDs, URLs,
+  task-pane names) require re-uploading the manifest in PowerPoint. Code/asset
+  changes served from GitHub Pages do not.
+
+### Caching
+
+- PowerPoint's webview caches `taskpane.html`/JS. If a change doesn't appear after
+  reopening, clear the Office cache at `%LOCALAPPDATA%\Microsoft\Office\16.0\Wef\`
+  or fully restart PowerPoint.
 
 ## Architecture
 
@@ -30,7 +60,7 @@ Entry: `src/taskpane/index.tsx` → mounts React inside `Office.onReady()`.
 | `src/lib/symbols.ts` | Inline SVG strings for Harvey balls, stoplights, arrows. |
 | `src/taskpane/App.tsx` | Root React component. Manages selection count (via `DocumentSelectionChanged` event) and toast state. |
 | `src/taskpane/components/` | One panel component per feature section (Align, Group, Comment, Symbols, Footnote, Status). |
-| `manifest.xml` | Add-in identity, ribbon button ("Open Toolbox" on Home tab), resource URLs pointing to `localhost:3000`. |
+| `manifest.xml` | Add-in identity, ribbon button ("Open Toolbox" on Home tab), resource URLs pointing to GitHub Pages (`https://rpetranovich-coder.github.io/powerpoint-toolbox/`). |
 
 ### Office.js API notes
 
