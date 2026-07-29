@@ -950,6 +950,8 @@ const BULLETS_NAME_PREFIX = "TBX_BULLETS_";
 const BULLETS_LEFT_MARGIN   = 40;
 const BULLETS_WIDTH         = SLIDE_WIDTH_PT - 2 * BULLETS_LEFT_MARGIN;
 const BULLETS_STARTER_HEIGHT = 130;
+// The sub-bullet (L2) font size sits one ribbon notch below L1, e.g. 16 → 14.
+const BULLETS_L2_STEP = -1;
 // Native PowerPoint bullets are applied via paragraphFormat.bulletFormat.visible
 // (PowerPointApi 1.4) and paragraphFormat.indentLevel for nesting (PowerPointApi
 // 1.10). The paragraph text contains NO bullet glyphs — PowerPoint renders real
@@ -1032,7 +1034,7 @@ export async function insertBulletsBox(
   await PowerPoint.run(async (context) => {
     const slide = await getActiveSlide(context);
 
-    const l2Size = stepFontSize(l1Size, -2);
+    const l2Size = stepFontSize(l1Size, BULLETS_L2_STEP);
     const top    = Math.max(0, (SLIDE_HEIGHT_PT - BULLETS_STARTER_HEIGHT) / 2);
 
     const shape = slide.shapes.addTextBox(BULLETS_DEFAULT_TEXT, {
@@ -1047,7 +1049,7 @@ export async function insertBulletsBox(
 
     const tf = shape.textFrame;
     tf.autoSizeSetting = PowerPoint.ShapeAutoSize.autoSizeShapeToFitText;
-    tf.leftMargin   = 8;
+    tf.leftMargin   = 0;   // first bullet sits at the very left of the ruler
     tf.rightMargin  = 8;
     tf.topMargin    = 4;
     tf.bottomMargin = 4;
@@ -1085,7 +1087,7 @@ async function findBulletsShape(
 
 /**
  * Re-set font sizes on the named bullets box. L1 paragraphs (indentLevel === 0)
- * get l1Size; everything indented further gets stepFontSize(l1Size, -2).
+ * get l1Size; everything indented further gets stepFontSize(l1Size, BULLETS_L2_STEP).
  */
 export async function resizeBulletsBox(
   shapeName: string,
@@ -1093,7 +1095,7 @@ export async function resizeBulletsBox(
 ): Promise<void> {
   await PowerPoint.run(async (context) => {
     const shape = await findBulletsShape(context, shapeName);
-    const subSize = stepFontSize(l1Size, -2);
+    const subSize = stepFontSize(l1Size, BULLETS_L2_STEP);
 
     const range = shape.textFrame.textRange;
     range.load("text");
@@ -1114,7 +1116,7 @@ export async function resizeBulletsBox(
 
 /**
  * Read the first L1 (indentLevel === 0) paragraph's font size from the named
- * bullets box, then re-apply L2 = L1 − 2 notches to every sub-paragraph.
+ * bullets box, then re-apply L2 = L1 − 1 notch to every sub-paragraph.
  * Use when the user resized L1 via the PowerPoint ribbon directly.
  */
 export async function syncSubBullets(shapeName: string): Promise<void> {
@@ -1138,7 +1140,7 @@ export async function syncSubBullets(shapeName: string): Promise<void> {
     if (!l1Size || l1Size <= 0)
       throw new Error("Could not read primary bullet font size.");
 
-    const subSize = stepFontSize(l1Size, -2);
+    const subSize = stepFontSize(l1Size, BULLETS_L2_STEP);
     for (const { sub } of slices) {
       if ((pfmt(sub).indentLevel ?? 0) >= 1) sub.font.size = subSize;
     }
