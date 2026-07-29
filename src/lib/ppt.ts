@@ -950,18 +950,35 @@ const BULLETS_NAME_PREFIX = "TBX_BULLETS_";
 const BULLETS_LEFT_MARGIN   = 40;
 const BULLETS_WIDTH         = SLIDE_WIDTH_PT - 2 * BULLETS_LEFT_MARGIN;
 const BULLETS_STARTER_HEIGHT = 130;
-// Literal Unicode bullet glyphs are used (not paragraphFormat.indentLevel)
-// because indentLevel only renders a glyph if the slide master defines one,
-// and many templates don't. Unicode glyphs always show.
-const BULLETS_L1_PREFIX = "• ";        // "• "
-const BULLETS_L2_PREFIX = "    ◦ ";    // "    ◦ "  (4 spaces for visual nesting)
-const BULLETS_DEFAULT_TEXT =
-  BULLETS_L1_PREFIX + "...\n" +
-  BULLETS_L2_PREFIX + "...";
+// Native PowerPoint bullets are applied via paragraphFormat.bulletFormat.visible
+// (PowerPointApi 1.4) and paragraphFormat.indentLevel for nesting (PowerPointApi
+// 1.10). The paragraph text contains NO bullet glyphs — PowerPoint renders real
+// bullets, so native bullet spacing / hanging indents, Tab promote-demote, and the
+// Bullets & Numbering dialog all operate on the result.
+const BULLETS_DEFAULT_LINES: { text: string; level: 0 | 1 }[] = [
+  { text: "...", level: 0 },
+  { text: "...", level: 1 },
+];
+const BULLETS_DEFAULT_TEXT = BULLETS_DEFAULT_LINES.map((l) => l.text).join("\n");
 
-/** Returns 1 for L2 (starts with ◦), 0 otherwise. */
-function bulletLevelOf(lineText: string): 0 | 1 {
-  return lineText.trimStart().startsWith("◦") ? 1 : 0;
+/**
+ * Native bullet nesting relies on paragraphFormat.indentLevel, which is
+ * PowerPointApi 1.10. Throw a clear, actionable error on older builds instead of
+ * silently inserting an un-nested box.
+ */
+function requireNativeBullets(): void {
+  let ok = false;
+  try {
+    ok = Office.context.requirements.isSetSupported("PowerPointApi", "1.10");
+  } catch {
+    ok = false;
+  }
+  if (!ok) {
+    throw new Error(
+      "Native bullets require PowerPoint on Microsoft 365 (current channel, " +
+      "PowerPoint API 1.10+). Please update PowerPoint to use this feature."
+    );
+  }
 }
 
 /**
@@ -973,12 +990,15 @@ function bulletLevelOf(lineText: string): 0 | 1 {
 interface ParagraphSlice { sub: PowerPoint.TextRange; lineIndex: number; text: string; }
 
 /**
- * paragraphFormat.spaceBefore / spaceAfter exist at runtime (PowerPointApi 1.4+)
- * but are missing from @types/office-js. Cast through this helper.
+ * paragraphFormat.spaceBefore / spaceAfter (PowerPointApi 1.4+), indentLevel
+ * (1.10) and the bulletFormat child object all exist at runtime but are missing
+ * from @types/office-js. Cast through this helper for both reading and writing.
  */
 function pfmt(sub: PowerPoint.TextRange): {
   spaceBefore: number;
   spaceAfter: number;
+  indentLevel: number;
+  bulletFormat: { visible: boolean };
 } {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return sub.paragraphFormat as any;
@@ -1000,14 +1020,15 @@ function paragraphSubstrings(
 }
 
 /**
- * Insert a new slide-width bullets text box with 3 L1 + 2 nested L2 bullets.
- * L1 paragraphs use l1Size; L2 paragraphs are stepped −2 notches.
- * Spacing is applied uniformly to every paragraph.
+ * Insert a new slide-width bullets text box with one L1 bullet and one nested L2
+ * bullet, using native PowerPoint bullet formatting. L1 paragraphs use l1Size;
+ * L2 paragraphs are stepped −2 notches. Spacing is applied to every paragraph.
  */
 export async function insertBulletsBox(
   l1Size = 16,
   spacing: BulletsSpacing = { before: 6, after: 6 }
 ): Promise<void> {
+  requireNativeBullets();
   await PowerPoint.run(async (context) => {
     const slide = await getActiveSlide(context);
 
@@ -1034,13 +1055,16 @@ export async function insertBulletsBox(
     const range = tf.textRange;
     range.font.name = "Aptos";
 
-    for (const { sub, text } of paragraphSubstrings(range, BULLETS_DEFAULT_TEXT)) {
-      const level = bulletLevelOf(text);
+    const slices = paragraphSubstrings(range, BULLETS_DEFAULT_TEXT);
+    slices.forEach(({ sub }, i) => {
+      const level = BULLETS_DEFAULT_LINES[i]?.level ?? 0;
       const pf = pfmt(sub);
+      pf.indentLevel = level;          // native nesting: L1 = 0, L2 = 1
+      pf.bulletFormat.visible = true;  // real PowerPoint bullet glyph
       pf.spaceBefore = spacing.before;
       pf.spaceAfter  = spacing.after;
       sub.font.size = level === 0 ? l1Size : l2Size;
-    }
+    });
 
     await context.sync();
   });
@@ -1075,8 +1099,13 @@ export async function resizeBulletsBox(
     range.load("text");
     await context.sync();
 
-    for (const { sub, text } of paragraphSubstrings(range, range.text ?? "")) {
-      sub.font.size = bulletLevelOf(text) === 0 ? l1Size : subSize;
+    const slices = paragraphSubstrings(range, range.text ?? "");
+    for (const { sub } of slices) sub.paragraphFormat.load("indentLevel");
+    await context.sync();
+
+    for (const { sub } of slices) {
+      const level = pfmt(sub).indentLevel ?? 0;
+      sub.font.size = level === 0 ? l1Size : subSize;
     }
 
     await context.sync();
@@ -1097,18 +1126,21 @@ export async function syncSubBullets(shapeName: string): Promise<void> {
     await context.sync();
 
     const slices = paragraphSubstrings(range, range.text ?? "");
-    for (const { sub } of slices) sub.font.load("size");
+    for (const { sub } of slices) {
+      sub.font.load("size");
+      sub.paragraphFormat.load("indentLevel");
+    }
     await context.sync();
 
-    const l1 = slices.find(({ text }) => bulletLevelOf(text) === 0);
-    if (!l1) throw new Error("No primary bullet (• prefix) found to sync from.");
+    const l1 = slices.find(({ sub }) => (pfmt(sub).indentLevel ?? 0) === 0);
+    if (!l1) throw new Error("No primary (level 1) bullet found to sync from.");
     const l1Size = l1.sub.font.size;
     if (!l1Size || l1Size <= 0)
       throw new Error("Could not read primary bullet font size.");
 
     const subSize = stepFontSize(l1Size, -2);
-    for (const { sub, text } of slices) {
-      if (bulletLevelOf(text) === 1) sub.font.size = subSize;
+    for (const { sub } of slices) {
+      if ((pfmt(sub).indentLevel ?? 0) >= 1) sub.font.size = subSize;
     }
 
     await context.sync();
